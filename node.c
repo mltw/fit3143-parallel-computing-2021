@@ -12,7 +12,7 @@
 
 
 /* This is the slave; each slave/process simulates one tsunameter sensor node */
-int slave_io(MPI_Comm world_comm, MPI_Comm comm, int dims[]){
+int node_io(MPI_Comm world_comm, MPI_Comm comm, int dims[]){
 
     int ndims=2, size, my_rank, reorder, my_cart_rank, ierr, masterSize;
 	MPI_Comm comm2D;

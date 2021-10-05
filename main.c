@@ -50,10 +50,10 @@ int main(int argc, char *argv[]){
     // the others are slaves, and thus would be in another color
     MPI_Comm_split( MPI_COMM_WORLD,rank == 0, 0, &new_comm);
     if (rank == 0) 
-	    master_io( MPI_COMM_WORLD, new_comm );
+	    base_station_io( MPI_COMM_WORLD, new_comm );
     else
         // pass in the dims array to the slaves for creating of cartesian topology
-	    slave_io( MPI_COMM_WORLD, new_comm, dims);
+	    node_io( MPI_COMM_WORLD, new_comm, dims);
     
     MPI_Finalize();
     return 0;
