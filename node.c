@@ -9,6 +9,7 @@
 #define DISP 1
 #define SHIFT_ROW 0
 #define SHIFT_COL 1
+#define MSG_SHUTDOWN 0
 
 
 /* This is the slave; each slave/process simulates one tsunameter sensor node */
@@ -48,6 +49,14 @@ int node_io(MPI_Comm world_comm, MPI_Comm comm, int dims[]){
 	MPI_Cart_shift( comm2D, SHIFT_COL, DISP, &nbr_j_lo, &nbr_j_hi );
 
     
+    // receive termination signal
+    char buf[256]; // temporary
+    MPI_Status status;
+    MPI_Recv( buf, 256, MPI_CHAR, MPI_ANY_SOURCE, MPI_ANY_TAG, world_comm, &status );
+    if (status.MPI_TAG == MSG_SHUTDOWN){
+        printf("node %d stop now\n",my_rank);
+    }
+
 
 
 

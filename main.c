@@ -49,11 +49,20 @@ int main(int argc, char *argv[]){
     // root rank (ie rank = 0) is the master and would be in one color;
     // the others are slaves, and thus would be in another color
     MPI_Comm_split( MPI_COMM_WORLD,rank == 0, 0, &new_comm);
-    if (rank == 0) 
-	    base_station_io( MPI_COMM_WORLD, new_comm );
-    else
+    if (rank == 0) {    
+        // when startup, user is able to specify no of iterations for base station to run
+        printf("Please enter the number of iterations you wish the base station will run. You may enter 'q' anytime during the program execution to stop the program.\n");
+        printf("Number of iterations that base station runs:\n");
+        int inputIterBaseStation;
+        scanf("%d",&inputIterBaseStation);
+	    base_station_io( MPI_COMM_WORLD, new_comm, inputIterBaseStation,nrows, ncols );
+	}
+	    
+    else {
         // pass in the dims array to the slaves for creating of cartesian topology
 	    node_io( MPI_COMM_WORLD, new_comm, dims);
+    }
+    
     
     MPI_Finalize();
     return 0;

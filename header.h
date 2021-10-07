@@ -8,7 +8,7 @@ Reference: https://riptutorial.com/c/example/3250/calling-a-function-from-anothe
 #ifndef HEADER_H_
 #define HEADER_H_
 
-int base_station_io(MPI_Comm world_comm, MPI_Comm comm);
+int base_station_io(MPI_Comm world_comm, MPI_Comm comm,int inputIterBaseStation, int nrows, int ncols);
 int node_io(MPI_Comm world_comm, MPI_Comm comm, int dims[]);
 
 #endif /* HEADER_H_ */
