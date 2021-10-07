@@ -9,8 +9,6 @@
 
 #define MSG_SHUTDOWN 0
 
-void* altimeter(void *pArg);
-int base_station_io(MPI_Comm world_comm, MPI_Comm comm, int inputIterBaseStation, int nrows, int ncols);
 
 /* This is the base station, which is also the root rank; it acts as the master */
 int base_station_io(MPI_Comm world_comm, MPI_Comm comm, int inputIterBaseStation, int nrows, int ncols){
