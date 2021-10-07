@@ -23,7 +23,10 @@ int main(int argc, char *argv[]){
     int ndims=2, size, dims[ndims];
 	int nrows, ncols;
     int rank;
+    int* buf;
+    int inputIterBaseStation, threshold;
     MPI_Comm new_comm;
+    MPI_Status status;
     MPI_Init(&argc, &argv);
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &size);
@@ -49,18 +52,37 @@ int main(int argc, char *argv[]){
     // root rank (ie rank = 0) is the master and would be in one color;
     // the others are slaves, and thus would be in another color
     MPI_Comm_split( MPI_COMM_WORLD,rank == 0, 0, &new_comm);
-    if (rank == 0) {    
-        // when startup, user is able to specify no of iterations for base station to run
+    if (rank == 0) {   
+        // printf("main if"); 
+
+        // when startup, user is able to specify no. of iterations for base station to run
         printf("Please enter the number of iterations you wish the base station will run. You may enter 'q' anytime during the program execution to stop the program.\n");
         printf("Number of iterations that base station runs:\n");
-        int inputIterBaseStation;
-        scanf("%d",&inputIterBaseStation);
-	    base_station_io( MPI_COMM_WORLD, new_comm, inputIterBaseStation,nrows, ncols );
+        scanf("%d", &inputIterBaseStation);
+
+        // then, ask user for input on a sea water column height threshold value
+        printf("Please enter a sea water column height threshold value greater than 6000:\n");
+        scanf("%d", &threshold);
+
+        // after getting user input, send them to the slaves to proceed with node_io
+        int i = 1;
+        // printf("size: %d\n", size);
+        for (i=1; i < size; i++){
+            MPI_Send(&inputIterBaseStation, 1, MPI_INT, i, 0, MPI_COMM_WORLD);
+            MPI_Send(&threshold, 1, MPI_INT, i, 0, MPI_COMM_WORLD);
+        }
+
+	    base_station_io( MPI_COMM_WORLD, new_comm, inputIterBaseStation, nrows, ncols );
 	}
-	    
     else {
-        // pass in the dims array to the slaves for creating of cartesian topology
-	    node_io( MPI_COMM_WORLD, new_comm, dims);
+        // slaves only proceed with node_io after receiving the inputs from master 
+        MPI_Recv(&inputIterBaseStation, 1, MPI_INT, 0, 0, MPI_COMM_WORLD, &status );
+        MPI_Recv(&threshold, 1, MPI_INT, 0, 0, MPI_COMM_WORLD, &status );
+        
+        printf("\nElse inputIter: %d\n", inputIterBaseStation);
+        printf("Else thres: %d\n", threshold);
+
+	    node_io( MPI_COMM_WORLD, new_comm, dims, threshold, inputIterBaseStation);
     }
     
     

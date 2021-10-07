@@ -10,6 +10,6 @@ Reference: https://riptutorial.com/c/example/3250/calling-a-function-from-anothe
 
 void* altimeter(void *pArg);
 int base_station_io(MPI_Comm world_comm, MPI_Comm comm,int inputIterBaseStation, int nrows, int ncols);
-int node_io(MPI_Comm world_comm, MPI_Comm comm, int dims[]);
+int node_io(MPI_Comm world_comm, MPI_Comm comm, int dims[], int threshold, int inputIterBaseStation);
 
 #endif /* HEADER_H_ */
