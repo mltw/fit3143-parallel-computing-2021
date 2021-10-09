@@ -94,6 +94,7 @@ struct coordinates {
     int y;
 };
 
+
 // reference for getting current time: https://www.cplusplus.com/reference/ctime/localtime/
 struct globalData {
     time_t rawtime;
@@ -102,7 +103,8 @@ struct globalData {
     float randFloat;
 };
 
-struct globalData globalArr[50]; // check max size needs to be how big 
+
+struct globalData globalArr[5]; 
 
 void* altimeter(void *pArg) // Common function prototype
 {   
@@ -111,31 +113,33 @@ void* altimeter(void *pArg) // Common function prototype
 
     char buf[256]; // temporary
     MPI_Status status;
-    int threshold = 6000, maxLimit = 9000;
     MPI_Request receive_request;
     double startTime, endTime,elapsed;
+    int maxSize = 5, pointerHead = 0, pointerTail = 0,current=0;
+    
 
-  
-    for (int i = 0;i <=10; i++){
+    // printf("BEfore DE SIZE IS %d\n", (int) (sizeof(globalArr)/sizeof(globalArr[0])));
+    for (int i = 0;i <=9; i++){
         startTime = MPI_Wtime();
         
-        // Get time generated
-        time (&globalArr[i].rawtime);
-        globalArr[i].timeinfo = localtime (&globalArr[i].rawtime);
-        //printf ("Current local time and date: %s", asctime(globalArr[i].timeinfo));    
-        
-        // Generate random coordinates 
-        globalArr[i].randCoord.x = rand() % (arg->recvRows);
-        globalArr[i].randCoord.y = rand() % (arg->recvCols);
-        //printf("random coordinates is (%d,%d)\n", globalArr[i].randCoord.x,globalArr[i].randCoord.y);
-        
-        
-        // Generate random float between a range 
-        globalArr[i].randFloat = ((maxLimit -threshold)*  ((float)rand() / RAND_MAX)) + threshold;
-        //printf("Random FLOAT of %d is %.3f\n",i, globalArr[i].randFloat );
-        
+        if (current <= maxSize-1){
+            // still can insert
+            processFunc(current, (arg->recvRows), (arg->recvCols));               // call helper func to fill the array
+            current++;                                               
+        }
+        else if (current == maxSize){
+            // once we reset, then even the next iter will update in the correct place
+            // e.g.: first time array full, then reset current to 0, now current will be 1 (but array is still full)
+            // so we next will remove the 2nd earliest data (which is at index 1)
+            printf("ARRAY FULL\n");
+            current = 0;                                                         // reset, start from index 0 again 
+            processFunc(current, (arg->recvRows), (arg->recvCols));
+            current++;
+            
+        }
+
+        // Receive termination signal
         MPI_Irecv(buf, 256, MPI_CHAR, MPI_ANY_SOURCE, MSG_SHUTDOWN, MPI_COMM_WORLD, &receive_request);
-        // receive termination signal
         if (status.MPI_TAG == MSG_SHUTDOWN){
             printf("Altimeter received termination signal, it will be stopped now.\n");
             //break;
@@ -147,15 +151,35 @@ void* altimeter(void *pArg) // Common function prototype
         
         // printf("start time is %.2f\n", startTime);
         // printf("end time is %.2f\n", endTime);
-        printf("time elapsed for iteration %d is %.2f\n", i, endTime - startTime);
-         // if whole operation in that iteration is less than 3 seconds, delay it to 3 seconds before next iteration
+        printf("Time elapsed for iteration %d is %.2f\n", i, endTime - startTime);
+         // if whole operation in that iteration is less than 1 seconds, delay it to 1 second before next iteration
        if( elapsed <= 1){
             // printf("delayedddddd at iteration %d for %.1f seconds\n",i,1-elapsed);
             sleep((int)1 - elapsed);
             //printf("SLEPT FOR iteration %d\n", i);
        }
-
+        printf("--------------------------------------\n");
+        
     }
-
     return 0;
+}
+
+void processFunc(int counter, int recvRows, int recvCols){
+    int threshold = 6000, maxLimit = 9000;
+    
+    printf("------ Altimeter Iteration %d ---------\n", counter);
+    // Get time generated
+    time(&globalArr[counter].rawtime);
+    globalArr[counter].timeinfo = localtime (&globalArr[counter].rawtime);
+    printf ("Current local time and date: %s", asctime(globalArr[counter].timeinfo));   
+    
+    // ssGenerate random coordinates 
+    globalArr[counter].randCoord.x = rand() % recvRows;
+    globalArr[counter].randCoord.y = rand() % recvCols;
+    printf("Random coordinates is (%d,%d)\n", globalArr[counter].randCoord.x,globalArr[counter].randCoord.y);
+    
+     // Generate random float between a range 
+     globalArr[counter].randFloat = ((maxLimit -threshold)*  ((float)rand() / RAND_MAX)) + threshold;
+     printf("Random float of iteration %d is %.3f\n",counter, globalArr[counter].randFloat );
+        
 }
