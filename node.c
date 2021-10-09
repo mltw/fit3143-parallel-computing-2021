@@ -106,12 +106,17 @@ int node_io(MPI_Comm world_comm, MPI_Comm comm, int dims[], int threshold, int i
 
     // receive termination signal
     char buf[256]; // temporary
-    MPI_Status status;
-    MPI_Recv( buf, 256, MPI_CHAR, MPI_ANY_SOURCE, MPI_ANY_TAG, world_comm, &status );
-    if (status.MPI_TAG == MSG_SHUTDOWN){
-        printf("node %d stop now\n",my_rank);
-    }
+    MPI_Status recv_status[my_rank];
+    MPI_Request receive_request[256];
 
+    MPI_Irecv(buf, 256, MPI_CHAR, MPI_ANY_SOURCE, MSG_SHUTDOWN, world_comm, &receive_request[my_rank]);
+    MPI_Wait(&receive_request[my_rank], MSG_SHUTDOWN);
+    printf("Node %d received termination signal, will stop now\n", my_rank);
+    
+    // check 
+    // if (recv_status[my_rank].MPI_TAG == MSG_SHUTDOWN){
+    //        printf("Node %d received termination signal, will stop now\n", my_rank);
+    //    }
 
 
 
