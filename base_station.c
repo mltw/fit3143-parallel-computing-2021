@@ -6,9 +6,9 @@
 #include <mpi.h>
 #include <pthread.h>
 #include <time.h>
+#include <unistd.h>
 
 #define MSG_SHUTDOWN 0
-
 
 /* This is the base station, which is also the root rank; it acts as the master */
 int base_station_io(MPI_Comm world_comm, MPI_Comm comm, int inputIterBaseStation, int nrows, int ncols){
@@ -49,16 +49,16 @@ int base_station_io(MPI_Comm world_comm, MPI_Comm comm, int inputIterBaseStation
     char buf[256]; // temporary
     char terminationSignal;
     int size, nNodes;
-    MPI_Status status;
+    
+    MPI_Request send_request[256]; // give it a max size 
     MPI_Comm_size( world_comm, &size );
     nNodes = size-1;
+    MPI_Status send_status[nNodes];
     
     // Altimeter
     pthread_t tid;
     pthread_create(&tid, 0, altimeter, &nNodes); // Create the thread
     
-
-
     // run for a fixed number of iterations which is set during compiled time
     for (int i =1; i <= inputIterBaseStation;i++){
          printf("here\n");
@@ -66,42 +66,71 @@ int base_station_io(MPI_Comm world_comm, MPI_Comm comm, int inputIterBaseStation
          if (i == inputIterBaseStation){
             // send termination signal to each node 
              for (int j = 1; j <= nNodes; j++){
-                MPI_Send(buf, 0, MPI_CHAR, j, MSG_SHUTDOWN, world_comm);
+                MPI_Isend(buf, 0, MPI_CHAR, j, MSG_SHUTDOWN, world_comm, &send_request[j]);
              }
              // send termination siganl to altimeter 
-             MPI_Send(buf, 0, MPI_CHAR, 0, MSG_SHUTDOWN, world_comm);
+             MPI_Isend(buf, 0, MPI_CHAR, 0, MSG_SHUTDOWN, world_comm, &send_request[0]);
          }
-       
+      
     }
+
+    MPI_Waitall(nNodes, send_request, send_status);
     
     pthread_join(tid, NULL); // Wait for the thread to complete
     return 0;
 }
 
-//struct globalData {
-    //timespec timeExecution;
-    //float randFloat;
+struct globalData {
+    struct timespec timeGenerated;
+    float randFloat;
     // coords
     
-//};
+};
 
-// globalData globalArr[50]; // check max size needs to be how big 
+struct globalData globalArr[50]; // check max size needs to be how big 
+
 void* altimeter(void *pArg) // Common function prototype
-{       
+{   
+    // TODO : check func inpu arg 
+    
     // receive termination signal
     char buf[256]; // temporary
     MPI_Status status;
-    MPI_Recv( buf, 256, MPI_CHAR, MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &status );
-    if (status.MPI_TAG == MSG_SHUTDOWN){
-        printf("altimeter stop now\n");
-    }
+    int threshold = 6000, maxLimit = 9000;
+    MPI_Request receive_request;
+    double startTime, endTime,elapsed;
     
-    // TODO: check iteration need to run how many or we can define 
-    for (int i=0; i <= 10;i++){
-        // generate random float 
-       // globalArr[i].timeExecution = clock_gettime(CLOCK_MONOTONIC, &timeExecution); 
-        //globalArr[i].randFloat = 
-        break;
+    
+    for (int i = 0;i <=10; i++){
+        startTime = MPI_Wtime();
+        // generate random float between a range (change this)
+        globalArr[i].randFloat = ((maxLimit -threshold)*  ((float)rand() / RAND_MAX)) + threshold;
+        printf("Random FLOAT of %d is %.3f\n",i, globalArr[i].randFloat );
+        
+        clock_gettime(CLOCK_MONOTONIC, &globalArr[i].timeGenerated); 
+        printf("this is my time: %lf\n", globalArr[i].timeGenerated.tv_nsec);
+        
+        MPI_Irecv(buf, 256, MPI_CHAR, MPI_ANY_SOURCE, MSG_SHUTDOWN, MPI_COMM_WORLD, &receive_request);
+        if (status.MPI_TAG == MSG_SHUTDOWN){
+            printf("Altimeter received termination signal, it will be stopped now.\n");
+            //break;
+        }
+
+       endTime = MPI_Wtime();
+       elapsed = endTime - startTime;
+
+        
+        // printf("start time is %.2f\n", startTime);
+        // printf("end time is %.2f\n", endTime);
+        printf("time elapsed for iteration %d is %.2f\n", i, endTime - startTime);
+         // if whole operation in that iteration is less than 3 seconds, delay it to 3 seconds before next iteration
+       if( elapsed <= 1){
+            // printf("delayedddddd at iteration %d for %.1f seconds\n",i,1-elapsed);
+            sleep((int)1 - elapsed);
+            //printf("SLEPT FOR iteration %d\n", i);
+       }
+
     }
+
     return 0;
 }
