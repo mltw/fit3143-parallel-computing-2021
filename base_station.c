@@ -131,7 +131,8 @@ void* altimeter(void *pArg) // Common function prototype
             // once we reset, then even the next iter will update in the correct place
             // e.g.: first time array full, then reset current to 0, now current will be 1 (but array is still full)
             // so we next will remove the 2nd earliest data (which is at index 1)
-            printf("ARRAY FULL\n");
+            
+            // printf("ARRAY FULL\n");
             current = 0;                                                         // reset, start from index 0 again 
             processFunc(current, (arg->recvRows), (arg->recvCols));
             current++;
@@ -173,7 +174,7 @@ void processFunc(int counter, int recvRows, int recvCols){
     globalArr[counter].timeinfo = localtime (&globalArr[counter].rawtime);
     printf ("Current local time and date: %s", asctime(globalArr[counter].timeinfo));   
     
-    // ssGenerate random coordinates 
+    // Generate random coordinates 
     globalArr[counter].randCoord.x = rand() % recvRows;
     globalArr[counter].randCoord.y = rand() % recvCols;
     printf("Random coordinates is (%d,%d)\n", globalArr[counter].randCoord.x,globalArr[counter].randCoord.y);
