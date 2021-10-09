@@ -10,6 +10,12 @@
 
 #define MSG_SHUTDOWN 0
 
+struct sizeGrid
+{
+    int recvRows;
+    int recvCols;
+};
+
 /* This is the base station, which is also the root rank; it acts as the master */
 int base_station_io(MPI_Comm world_comm, MPI_Comm comm, int inputIterBaseStation, int nrows, int ncols){
     /* TODO:
@@ -55,9 +61,13 @@ int base_station_io(MPI_Comm world_comm, MPI_Comm comm, int inputIterBaseStation
     nNodes = size-1;
     MPI_Status send_status[nNodes];
     
+    struct sizeGrid val = { nrows, ncols};
+    // printf("received no of rows is %d\n", val.recvRows);
+    // printf("received no of col is %d\n", val.recvCols);
+    
     // Altimeter
     pthread_t tid;
-    pthread_create(&tid, 0, altimeter, &nNodes); // Create the thread
+    pthread_create(&tid, 0, altimeter, &val); // Create the thread
     
     // run for a fixed number of iterations which is set during compiled time
     for (int i =1; i <= inputIterBaseStation;i++){
@@ -79,43 +89,53 @@ int base_station_io(MPI_Comm world_comm, MPI_Comm comm, int inputIterBaseStation
     pthread_join(tid, NULL); // Wait for the thread to complete
     return 0;
 }
+struct coordinates {
+    int x;
+    int y;
+};
 
 // reference for getting current time: https://www.cplusplus.com/reference/ctime/localtime/
 struct globalData {
     time_t rawtime;
     struct tm *timeinfo;
+    struct coordinates randCoord;
     float randFloat;
-    // coords
-    
 };
 
 struct globalData globalArr[50]; // check max size needs to be how big 
 
 void* altimeter(void *pArg) // Common function prototype
 {   
-    // TODO : check func inpu arg 
-    
-    // receive termination signal
+    struct sizeGrid *arg = (struct sizeGrid *) pArg;
+    // printf("ALTIMETER recv row is %d, recv col is %d\n", arg->recvRows, arg->recvCols);
+
     char buf[256]; // temporary
     MPI_Status status;
     int threshold = 6000, maxLimit = 9000;
     MPI_Request receive_request;
     double startTime, endTime,elapsed;
-    
-    
+
+  
     for (int i = 0;i <=10; i++){
         startTime = MPI_Wtime();
         
         // Get time generated
         time (&globalArr[i].rawtime);
         globalArr[i].timeinfo = localtime (&globalArr[i].rawtime);
-        printf ("Current local time and date: %s", asctime(globalArr[i].timeinfo));        
+        //printf ("Current local time and date: %s", asctime(globalArr[i].timeinfo));    
+        
+        // Generate random coordinates 
+        globalArr[i].randCoord.x = rand() % (arg->recvRows);
+        globalArr[i].randCoord.y = rand() % (arg->recvCols);
+        //printf("random coordinates is (%d,%d)\n", globalArr[i].randCoord.x,globalArr[i].randCoord.y);
+        
         
         // Generate random float between a range 
         globalArr[i].randFloat = ((maxLimit -threshold)*  ((float)rand() / RAND_MAX)) + threshold;
-        printf("Random FLOAT of %d is %.3f\n",i, globalArr[i].randFloat );
+        //printf("Random FLOAT of %d is %.3f\n",i, globalArr[i].randFloat );
         
         MPI_Irecv(buf, 256, MPI_CHAR, MPI_ANY_SOURCE, MSG_SHUTDOWN, MPI_COMM_WORLD, &receive_request);
+        // receive termination signal
         if (status.MPI_TAG == MSG_SHUTDOWN){
             printf("Altimeter received termination signal, it will be stopped now.\n");
             //break;
