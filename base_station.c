@@ -7,8 +7,10 @@
 #include <pthread.h>
 #include <time.h>
 #include <unistd.h>
+#include<stdbool.h>  
 
 #define MSG_SHUTDOWN 0
+#define MAX_LENGTH 40
 
 struct sizeGrid
 {
@@ -19,11 +21,6 @@ struct sizeGrid
 /* This is the base station, which is also the root rank; it acts as the master */
 int base_station_io(MPI_Comm world_comm, MPI_Comm comm, int inputIterBaseStation, int nrows, int ncols){
     /* TODO:
-    - run for a fixed number of iterations which is set during compiled time (DONE)
-    - when startup, user is able to specify no of iterations for base station to run  (DONE)
-    - once completed all iterations, send termination signals to node & altimeter to shutdown (DONE)
-    - allow user to enter a sentinel value AT RUNTIME to properly shutdown node, atlimeter & base station
-    
     
     - EVERY ITERATION:
         - Listen to incoming comm./report from ANY node (if any)
@@ -53,13 +50,14 @@ int base_station_io(MPI_Comm world_comm, MPI_Comm comm, int inputIterBaseStation
     */
     
     char buf[256]; // temporary
-    char terminationSignal;
     int size, nNodes;
+    bool terminationSignal = false;
     
     MPI_Request send_request[256]; // give it a max size 
     MPI_Comm_size( world_comm, &size );
     nNodes = size-1;
     MPI_Status send_status[nNodes];
+    void *resSignal;
     
     struct sizeGrid val = { nrows, ncols};
     // printf("received no of rows is %d\n", val.recvRows);
@@ -68,6 +66,10 @@ int base_station_io(MPI_Comm world_comm, MPI_Comm comm, int inputIterBaseStation
     // Altimeter
     pthread_t tid;
     pthread_create(&tid, 0, altimeter, &val); // Create the thread
+    
+    // Concurrently waiting for input from user
+    pthread_t tid2;
+    pthread_create(&tid2,0, userInput, &terminationSignal);
     
     // run for a fixed number of iterations which is set during compiled time
     for (int i =1; i <= inputIterBaseStation;i++){
@@ -86,9 +88,19 @@ int base_station_io(MPI_Comm world_comm, MPI_Comm comm, int inputIterBaseStation
 
     MPI_Waitall(nNodes, send_request, send_status);
     
-    pthread_join(tid, NULL); // Wait for the thread to complete
+    //sleep(5); // for testing user input termination 
+    pthread_join(tid, NULL);                                    // Wait for the thread to complete
+    pthread_join(tid2, &resSignal);
+    if ((bool)resSignal == true){
+        printf(" I RECEIVED true SIGNAL IN MAIN FUNCTION\n"); 
+        return 0;
+        }
+    else 
+        printf("I DID NOT RECV SIGNAL YET\n");
+    
     return 0;
 }
+
 struct coordinates {
     int x;
     int y;
@@ -106,7 +118,7 @@ struct globalData {
 
 struct globalData globalArr[5]; 
 
-void* altimeter(void *pArg) // Common function prototype
+void* altimeter(void *pArg) 
 {   
     struct sizeGrid *arg = (struct sizeGrid *) pArg;
     // printf("ALTIMETER recv row is %d, recv col is %d\n", arg->recvRows, arg->recvCols);
@@ -115,10 +127,9 @@ void* altimeter(void *pArg) // Common function prototype
     MPI_Status status;
     MPI_Request receive_request;
     double startTime, endTime,elapsed;
-    int maxSize = 5, pointerHead = 0, pointerTail = 0,current=0;
+    int maxSize = 5, current=0;
     
 
-    // printf("BEfore DE SIZE IS %d\n", (int) (sizeof(globalArr)/sizeof(globalArr[0])));
     for (int i = 0;i <=9; i++){
         startTime = MPI_Wtime();
         
@@ -131,8 +142,7 @@ void* altimeter(void *pArg) // Common function prototype
             // once we reset, then even the next iter will update in the correct place
             // e.g.: first time array full, then reset current to 0, now current will be 1 (but array is still full)
             // so we next will remove the 2nd earliest data (which is at index 1)
-            
-            // printf("ARRAY FULL\n");
+            printf("ARRAY FULL\n");
             current = 0;                                                         // reset, start from index 0 again 
             processFunc(current, (arg->recvRows), (arg->recvCols));
             current++;
@@ -143,6 +153,7 @@ void* altimeter(void *pArg) // Common function prototype
         MPI_Irecv(buf, 256, MPI_CHAR, MPI_ANY_SOURCE, MSG_SHUTDOWN, MPI_COMM_WORLD, &receive_request);
         if (status.MPI_TAG == MSG_SHUTDOWN){
             printf("Altimeter received termination signal, it will be stopped now.\n");
+            // return 0;
             //break;
         }
 
@@ -160,7 +171,7 @@ void* altimeter(void *pArg) // Common function prototype
             //printf("SLEPT FOR iteration %d\n", i);
        }
         printf("--------------------------------------\n");
-        
+        pthread_exit (NULL);
     }
     return 0;
 }
@@ -183,4 +194,30 @@ void processFunc(int counter, int recvRows, int recvCols){
      globalArr[counter].randFloat = ((maxLimit -threshold)*  ((float)rand() / RAND_MAX)) + threshold;
      printf("Random float of iteration %d is %.3f\n",counter, globalArr[counter].randFloat );
         
+}
+
+// code inspiration: https://w3.cs.jmu.edu/kirkpams/OpenCSF/Books/csf/html/Extended6Input.html
+void* userInput(void *pArg){
+    bool currentSignal;
+    bool* p = (bool*)pArg;
+	currentSignal = *p;
+	
+	char buffer[MAX_LENGTH + 1];
+    memset (buffer, 0, MAX_LENGTH + 1);
+	
+	/* Read a line of input from STDIN */
+  while (fgets (buffer, MAX_LENGTH, stdin) != NULL)
+    {
+      /* Try to convert input to integer -1. All other values are wrong. */
+      long guess = strtol (buffer, NULL, 10);
+      if (guess == -1)
+        {
+          /* Successfully read a -1 from input; exit with true */
+          printf ("User wish to terminate!\n");
+          currentSignal = true;
+          pthread_exit ((void*)currentSignal);
+        }
+    }
+
+    return 0;
 }

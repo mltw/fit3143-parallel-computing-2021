@@ -56,7 +56,7 @@ int main(int argc, char *argv[]){
         // printf("main if"); 
 
         // when startup, user is able to specify no. of iterations for base station to run
-        printf("Please enter the number of iterations you wish the base station will run. You may enter 'q' anytime during the program execution to stop the program.\n");
+        printf("Please enter the number of iterations you wish the base station will run. You may enter '-1' anytime during the program execution to stop the program.\n");
         printf("Number of iterations that base station runs:\n");
         scanf("%d", &inputIterBaseStation);
 
