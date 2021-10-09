@@ -80,8 +80,10 @@ int base_station_io(MPI_Comm world_comm, MPI_Comm comm, int inputIterBaseStation
     return 0;
 }
 
+// reference for getting current time: https://www.cplusplus.com/reference/ctime/localtime/
 struct globalData {
-    struct timespec timeGenerated;
+    time_t rawtime;
+    struct tm *timeinfo;
     float randFloat;
     // coords
     
@@ -103,12 +105,15 @@ void* altimeter(void *pArg) // Common function prototype
     
     for (int i = 0;i <=10; i++){
         startTime = MPI_Wtime();
-        // generate random float between a range (change this)
+        
+        // Get time generated
+        time (&globalArr[i].rawtime);
+        globalArr[i].timeinfo = localtime (&globalArr[i].rawtime);
+        printf ("Current local time and date: %s", asctime(globalArr[i].timeinfo));        
+        
+        // Generate random float between a range 
         globalArr[i].randFloat = ((maxLimit -threshold)*  ((float)rand() / RAND_MAX)) + threshold;
         printf("Random FLOAT of %d is %.3f\n",i, globalArr[i].randFloat );
-        
-        clock_gettime(CLOCK_MONOTONIC, &globalArr[i].timeGenerated); 
-        printf("this is my time: %lf\n", globalArr[i].timeGenerated.tv_nsec);
         
         MPI_Irecv(buf, 256, MPI_CHAR, MPI_ANY_SOURCE, MSG_SHUTDOWN, MPI_COMM_WORLD, &receive_request);
         if (status.MPI_TAG == MSG_SHUTDOWN){
