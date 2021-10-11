@@ -38,7 +38,7 @@ int main(int argc, char *argv[]){
 		dims[0] = nrows; // number of rows 
 		dims[1] = ncols; // number of columns
 		if( ((nrows*ncols)+1) != size) {
-			if( rank ==0) printf("ERROR: (nrows*ncols)+1)=%d * %d = %d != %d\n", 
+			if( rank ==0) printf("ERROR: (nrows*ncols)+1)= (%d * %d)+1 = %d != %d\n", 
                                     nrows, ncols, nrows*ncols+1, size);
 			MPI_Finalize(); 
 			return 0;

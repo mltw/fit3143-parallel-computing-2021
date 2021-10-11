@@ -11,6 +11,8 @@
 
 #define MSG_SHUTDOWN 0
 #define MAX_LENGTH 40
+#define MSG_NODE_TO_BASE_SHUTDOWN_THREAD 2
+#define MSG_BASE_TO_NODE_SHUTDOWN_THREAD 3
 
 struct sizeGrid
 {
@@ -50,13 +52,15 @@ int base_station_io(MPI_Comm world_comm, MPI_Comm comm, int inputIterBaseStation
     */
     
     char buf[256]; // temporary
-    int size, nNodes;
+    int size, nNodes, recv;
     bool terminationSignal = false;
     
     MPI_Request send_request[256]; // give it a max size 
     MPI_Comm_size( world_comm, &size );
     nNodes = size-1;
     MPI_Status send_status[nNodes];
+    MPI_Status status;
+    MPI_Request receive_request;
     void *resSignal;
     
     struct sizeGrid val = { nrows, ncols};
@@ -72,11 +76,25 @@ int base_station_io(MPI_Comm world_comm, MPI_Comm comm, int inputIterBaseStation
     pthread_create(&tid2,0, userInput, &terminationSignal);
     
     // run for a fixed number of iterations which is set during compiled time
-    for (int i =1; i <= inputIterBaseStation;i++){
+    for (int i =0; i <= inputIterBaseStation;i++){
          printf("here\n");
          
          if (i == inputIterBaseStation){
             // send termination signal to each node 
+             for (int j = 1; j <= nNodes; j++){
+                //  try receive a thread termination msg from nodes
+                printf("base station preparing to receive 888 from any source\n");
+                MPI_Recv(&recv, 1, MPI_INT, MPI_ANY_SOURCE, MSG_NODE_TO_BASE_SHUTDOWN_THREAD, world_comm, &status);
+                // MPI_Irecv(&recv, 1, MPI_INT, MPI_ANY_SOURCE, 888, world_comm, &receive_request);
+
+
+                printf("base station received 888 from rank %d\n", status.MPI_SOURCE);
+                // then send a msg back to the nodes, which is received by their thread, to shutdown the thread
+                
+                MPI_Send(&recv, 1, MPI_INT, status.MPI_SOURCE, MSG_BASE_TO_NODE_SHUTDOWN_THREAD, world_comm);
+                printf("base station sent 889 to rank %d\n", status.MPI_SOURCE);
+             }
+             
              for (int j = 1; j <= nNodes; j++){
                 MPI_Isend(buf, 0, MPI_CHAR, j, MSG_SHUTDOWN, world_comm, &send_request[j]);
              }
