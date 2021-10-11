@@ -13,9 +13,11 @@
 #define SHIFT_ROW 0
 #define SHIFT_COL 1
 #define MSG_SHUTDOWN 0
-#define MSG_NODE_TO_BASE_SHUTDOWN_THREAD 2
-#define MSG_BASE_TO_NODE_SHUTDOWN_THREAD 3
+#define MSG_ALERT_BASE_STATION 3
 #define MSG_REQ_NEIGHBOUR_NODE 4
+#define MSG_RES_NEIGHBOUR_NODE 5
+
+
 
 // global struct for POSIX threads to retrieve the node's rank and moving average for that iteration
 struct arg_struct_thread {
@@ -23,10 +25,13 @@ struct arg_struct_thread {
     // int node_rank;
     // MPI_Comm node_comm;
     // float* recv_node_mAvg;
+    float node_mAvg;
     int end;
     int rank;
+    int updated_neighbour_ma;
     MPI_Comm world_comm;
     MPI_Comm comm;
+    float* recv_node_ma_arr;
 } *node_thread_args;
 
 struct arg_struct_base_station {
@@ -36,14 +41,14 @@ struct arg_struct_base_station {
     
     int recv_node_rank_arr[4];
     int recv_node_coord[4][2];
-    float recv_ma_arr[4];
+    float recv_node_ma_arr[4];
 
 } *node_base_station_args;
 
 /* This is the slave; each slave/process simulates one tsunameter sensor node */
 int node_io(MPI_Comm world_comm, MPI_Comm comm, int dims[], int threshold, int inputIterBaseStation){
     printf("in node\n");
-    int ndims=2, size, my_rank, reorder, my_cart_rank, ierr, masterSize;
+    int ndims=2, size, my_rank, reorder, my_cart_rank, ierr, masterSize, i;
     float randNum, mAvg;
 	MPI_Comm comm2D;
 	int coord[ndims];
@@ -54,6 +59,10 @@ int node_io(MPI_Comm world_comm, MPI_Comm comm, int dims[], int threshold, int i
     MPI_Comm_size(world_comm, &masterSize); // size of the master communicator
   	MPI_Comm_size(comm, &size); // size of the slave communicator
 	MPI_Comm_rank(comm, &my_rank);  // rank of the slave communicator
+
+    char* pOutputFileName = (char*) malloc(20 * sizeof(char));
+    FILE *pFile;
+    snprintf(pOutputFileName, 20, "node_%d.txt", my_rank);
 
     MPI_Dims_create(size, ndims, dims);
     printf("Slave Rank: %d. Comm Size: %d: Grid Dimension = [%d x %d] \n",my_rank,size,dims[0],dims[1]);
@@ -77,12 +86,11 @@ int node_io(MPI_Comm world_comm, MPI_Comm comm, int dims[], int threshold, int i
 	MPI_Cart_shift( comm2D, SHIFT_ROW, DISP, &nbr_i_lo, &nbr_i_hi );
 	MPI_Cart_shift( comm2D, SHIFT_COL, DISP, &nbr_j_lo, &nbr_j_hi );
 
-    // printf("before do and my rank is: %d\n", my_rank);
-    // printf("before do and my cart rank is: %d\n", my_cart_rank);
-
     // array to store the values generated to calculate moving average (MA)
-    ma_arr = (float*)malloc(inputIterBaseStation * sizeof(float));
-    memset(ma_arr, 0, inputIterBaseStation * sizeof(float));
+    // ####################!!!!!!!!!!!!!!!!!!!!****************************%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    // TODO: gotta edit this cuz nodes wont know the total num of iteration 
+    ma_arr = (float*)malloc(100 * sizeof(float));
+    memset(ma_arr, 0, 100 * sizeof(float));
 
     // double *pX4Buff = NULL;
     // pX4Buff = (double*)malloc(fileElementCount * sizeof(double));
@@ -94,8 +102,11 @@ int node_io(MPI_Comm world_comm, MPI_Comm comm, int dims[], int threshold, int i
     node_thread_args = malloc(sizeof(struct arg_struct_thread) * 1);
     node_thread_args->end = 0;
     node_thread_args->rank = my_cart_rank;
+    node_thread_args->updated_neighbour_ma = 0;
     node_thread_args->comm = comm;
     node_thread_args->world_comm = world_comm;
+    node_thread_args->recv_node_ma_arr = malloc(sizeof(float) * size);
+    for(i = 0; i < size; i++) node_thread_args->recv_node_ma_arr[i] = -1;
 
     // each node would have a POSIX thread to wait for and receive requests for their MA
     pthread_t tid;
@@ -105,7 +116,7 @@ int node_io(MPI_Comm world_comm, MPI_Comm comm, int dims[], int threshold, int i
         printf("Error creating thread in node %d", my_rank);
 
     // -------------------------------------------------------------------------
-    int counter = 0, i =0;
+    int counter = 0;
     double startTime, endTime;
     printf("master size is %d", masterSize);
     do{
@@ -138,23 +149,57 @@ int node_io(MPI_Comm world_comm, MPI_Comm comm, int dims[], int threshold, int i
         // }
 
         printf("Rank %d generated %f\n", my_cart_rank, mAvg);
+        node_thread_args->node_mAvg = mAvg;
+        
+        pFile = fopen(pOutputFileName, "a");
 
+        fprintf(pFile, "\nCounter: %d of node rank %d (world rank %d)\n", counter, my_rank, my_rank+1);
+        fprintf(pFile, "Generated: %f\n", randNum);
+        fprintf(pFile, "Moving average is: %f\n", mAvg);
+        
 
         // ------------------ test send to neighbour node ----------------------
+        // MPI_Request send_request[4];
         // if (my_cart_rank == 0){
-        //     if (nbr_i_hi >= 0){
-        //         printf("in nbr_i_hi of rank 0 and sending to %d\n", nbr_i_hi+1);
-        //         MPI_Send(&my_cart_rank, 1, MPI_INT, nbr_i_hi+1, MSG_REQ_NEIGHBOUR_NODE, world_comm);
+        
+        int arr[4] = {nbr_i_lo, nbr_i_hi, nbr_j_lo, nbr_j_hi};  
+        char* arr_char[] = {"top neighbour", "bottom neighbour", "left neighbour", "right neighbour"};
 
-        //         // MPI_Isend(&my_cart_rank, 1, MPI_INT, nbr_i_hi, MSG_REQ, comm2D, &send_request[1]);
-        //         // MPI_Wait(&send_request[1], MPI_STATUS_IGNORE);
-                
-        //         printf("in nbr_i_hi of rank 0 and send done\n"); 
-                
-        // }
-        // }
-        // ---------------------------------------------------------------------
+        // if MA > threshold, request MA of neighbours
+        int temp_counter = 0;
+        if (mAvg > threshold){
+            for (i=0; i<4; i++){
+                // only send to neighbours that exist
+                if ( arr[i] >=0 ){
+                    printf("in %s of rank %d and sending to %d\n", arr_char[i], my_rank, nbr_i_hi+1);
+                    MPI_Send(&my_cart_rank, 1, MPI_INT, arr[i]+1, MSG_REQ_NEIGHBOUR_NODE, world_comm);
 
+                    printf("in %s of rank %d and send done\n", arr_char[i], my_rank);
+                    printf("stored in array value of nbr_i_hi is %f\n", node_thread_args->recv_node_ma_arr[nbr_i_hi]);
+
+                    fprintf(pFile, "value of %s stored in array is %f\n", 
+                                    arr_char[i], node_thread_args->recv_node_ma_arr[arr[i]]);
+                    // don't calculate neighbours' MA until received the latest updated one
+                    while (node_thread_args->updated_neighbour_ma==1){
+                        float neighbour_ma = node_thread_args->recv_node_ma_arr[arr[i]];
+                        if ( neighbour_ma >= (threshold-100) && neighbour_ma <= (threshold+100)){
+                            fprintf(pFile, "value of %s stored in array is %f\n", 
+                                    arr_char[i], node_thread_args->recv_node_ma_arr[arr[i]]);
+                            temp_counter+=1;
+                        }
+                        node_thread_args->updated_neighbour_ma = 0;
+                    }
+                    node_thread_args->updated_neighbour_ma = 0;
+                }
+            }
+        }
+        fprintf(pFile, "counter where neighbours' MA within threshold range: %d\n", temp_counter);
+
+        fclose(pFile);
+     
+        // if >=2 neighbours' MA match this node's MA, send a report to the base station
+        // MPI_Send(&my_cart_rank, 1, MPI_INT, 0, MSG_ALERT_BASE_STATION, world_comm);
+ 
 
 
 
@@ -164,90 +209,62 @@ int node_io(MPI_Comm world_comm, MPI_Comm comm, int dims[], int threshold, int i
             sleep(10 - (endTime-startTime));
         }
 
-        node_thread_args->end = counter;
-        printf("%d", node_thread_args->end);
+        // node_thread_args->end = counter;
+        // printf("%d", node_thread_args->end);
         // MPI_Barrier(comm); 
         printf("------- END OF COUNTER %d --------\n", counter);
         counter++;
     }
-    while (counter<inputIterBaseStation);
-
-    // MPI_Isend 
+    while (node_thread_args->end >=0 );
     
-
-    // cant do this cuz ifthe other rank/node de thread terminate dy, no one's gonna receive
-    // MPI_Send(&my_cart_rank, 1, MPI_INT, 
-    //         my_cart_rank == masterSize-2 ? 0 : my_cart_rank+1, 
-    //         888, comm2D);
-
     MPI_Barrier(comm);
 
-
-    // ------------- nodes send a msg to base_station to help to terminate the nodes' threads --------------
-    MPI_Request send_request[4];
-    printf("gonna send my rank is %d\n", my_cart_rank);
-    // MPI_Isend(&my_cart_rank, 1, MPI_INT,  my_cart_rank == masterSize-2 ? 0 : my_cart_rank+1,
-    //             888, comm2D, &send_request[1]);
-    // MPI_Wait(&send_request[1], MPI_STATUS_IGNORE);
-
-    //send a msg to base station to send back here a msg to terminate the threads
-    MPI_Send(&my_cart_rank, 1, MPI_INT, 0, MSG_NODE_TO_BASE_SHUTDOWN_THREAD, world_comm);
-
     pthread_join(tid, NULL);
-    printf("thread joined back in node %d\n", my_cart_rank);
-    // ----------------------------------------------------------------------------------------------------
-
-    // MPI_Barrier(comm);
-
-    // receive termination signal
-    char buf[256]; // temporary
-    MPI_Status recv_status[my_rank];
-    MPI_Request receive_request[256];
-
-    MPI_Irecv(buf, 256, MPI_CHAR, MPI_ANY_SOURCE, MSG_SHUTDOWN, world_comm, &receive_request[my_rank]);
-    MPI_Wait(&receive_request[my_rank], MSG_SHUTDOWN);
-    printf("Node %d received termination signal, will stop now\n", my_rank);
-    
-    // check 
-    // if (recv_status[my_rank].MPI_TAG == MSG_SHUTDOWN){
-    //        printf("Node %d received termination signal, will stop now\n", my_rank);
-    //    }
-
-
 
     free(node_thread_args);
+    free(node_thread_args->recv_node_ma_arr);
     free(ma_arr);
     MPI_Comm_free( &comm2D );
 	return 0;
-
-
-
 }
 
 
 void* node_recv(void *arguments){
     struct arg_struct_thread *node_thread_args = arguments;
-    // int end = node_thread_args->end;
+    int end = node_thread_args->end;
+    float mAvg = node_thread_args->node_mAvg;
+    float* recv_node_ma_arr = node_thread_args->recv_node_ma_arr;
     int rank = node_thread_args->rank;
     MPI_Comm comm = node_thread_args->comm;
     MPI_Comm world_comm = node_thread_args->world_comm;
 
     MPI_Status status;
-    int recv;
-    // while (node_thread_args->end<=2) {
-    //     // printf("node mAvg: %f\n", node_mAvg);
-    //     printf("node rank: %d\n", rank);
-    // }
-    while (1){
-        MPI_Recv(&recv, 1, MPI_INT, MPI_ANY_SOURCE, MPI_ANY_TAG, world_comm, &status);
-        if (status.MPI_TAG == MSG_BASE_TO_NODE_SHUTDOWN_THREAD){
-            printf("received termination msg from base_station to thread %d", rank);
-            break;
+    float recv;
+
+    while (node_thread_args->end >= 0){
+        MPI_Recv(&recv, 1, MPI_INT, MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
+        // if (status.MPI_TAG == MSG_BASE_TO_NODE_SHUTDOWN_THREAD){
+        //     printf("received termination msg from base_station to thread %d", rank);
+        //     break;
+        // }
+        if (status.MPI_TAG == MSG_REQ_NEIGHBOUR_NODE){
+            printf("im node %d (world_rank %d), and i received request msg from node %d (world_rank %d)\n", 
+                    rank, rank+1, status.MPI_SOURCE-1, status.MPI_SOURCE);
+            // send this node's MA back to the source which requested it    
+            MPI_Send(&node_thread_args->node_mAvg, 1, MPI_INT, status.MPI_SOURCE, MSG_RES_NEIGHBOUR_NODE, MPI_COMM_WORLD);
+            // printf("received request msg from node %d\n", status.MPI_SOURCE);
         }
-        else if (status.MPI_TAG == MSG_REQ_NEIGHBOUR_NODE){
-            printf("received request msg from node %d", status.MPI_SOURCE);
-
-
+        else if (status.MPI_TAG == MSG_RES_NEIGHBOUR_NODE){
+            printf("im node %d (world_rank %d), and i received response msg of %f from node %d (world_rank %d)\n", 
+                    rank, rank+1, recv, status.MPI_SOURCE-1, status.MPI_SOURCE);
+            recv_node_ma_arr[status.MPI_SOURCE-1] = recv;
+            printf("put into array: %f\n", recv_node_ma_arr[status.MPI_SOURCE-1]);
+            node_thread_args->updated_neighbour_ma = 1;
+        }
+        else if (status.MPI_TAG == MSG_SHUTDOWN){
+            printf("Node %d received termination signal in thread, will stop now\n", rank);
+            node_thread_args->end = -1;
+            break;
         }
         else{
             printf("thread received from source %d", status.MPI_SOURCE);
