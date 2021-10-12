@@ -11,6 +11,7 @@
 
 #define MSG_SHUTDOWN 0
 #define MAX_LENGTH 40
+#define MSG_SHUTODWN_BASE_STATION_THREAD 2
 #define MSG_ALERT_BASE_STATION 3
 
 struct sizeGrid
@@ -18,6 +19,20 @@ struct sizeGrid
     int recvRows;
     int recvCols;
 };
+
+struct arg_struct_base_station {
+    int iteration;
+    char timestamp[256];
+
+    int reporting_node_rank;
+    float reporting_node_ma;
+    int reporting_node_coord[2];
+
+    int recv_node_rank_arr[4];
+    float recv_node_ma_arr[4];
+    int recv_node_coord[4][2];
+};
+
 
 /* This is the base station, which is also the root rank; it acts as the master */
 int base_station_io(MPI_Comm world_comm, MPI_Comm comm, int inputIterBaseStation, int nrows, int ncols){
@@ -51,7 +66,7 @@ int base_station_io(MPI_Comm world_comm, MPI_Comm comm, int inputIterBaseStation
     */
     
     char buf[256]; // temporary
-    int size, nNodes, recv;
+    int size, nNodes, recv, thread_init;
     bool terminationSignal = false;
     
     MPI_Request send_request[256]; // give it a max size 
@@ -66,13 +81,25 @@ int base_station_io(MPI_Comm world_comm, MPI_Comm comm, int inputIterBaseStation
     // printf("received no of rows is %d\n", val.recvRows);
     // printf("received no of col is %d\n", val.recvCols);
     
-    // Altimeter
+    // thread for Altimeter
     pthread_t tid;
-    pthread_create(&tid, 0, altimeter, &val); // Create the thread
+    thread_init = pthread_create(&tid, 0, altimeter, &val); // Create the thread
+    if (thread_init != 0)
+        printf("Error creating altimeter thread in base station\n");
     
-    // Concurrently waiting for input from user
+    // thread to concurrently wait for input from user
     pthread_t tid2;
-    pthread_create(&tid2,0, userInput, &terminationSignal);
+    thread_init = pthread_create(&tid2,0, userInput, &terminationSignal);
+    if (thread_init != 0)
+        printf("Error creating awaiting user input thread in base station\n");
+
+    // thread to send/receive msg to/from sensor nodes
+    pthread_t tid3;
+    thread_init = pthread_create(&tid3, NULL, base_station_recv, NULL);
+    if (thread_init != 0)
+        printf("Error creating base station recv thread in base station\n");
+
+
     
     // run for a fixed number of iterations which is set during compiled time
     for (int i =0; i <= inputIterBaseStation;i++){
@@ -96,6 +123,8 @@ int base_station_io(MPI_Comm world_comm, MPI_Comm comm, int inputIterBaseStation
     //sleep(5); // for testing user input termination 
     pthread_join(tid, NULL);                                    // Wait for the thread to complete
     pthread_join(tid2, &resSignal);
+    pthread_join(tid3, NULL); 
+
     if ((bool)resSignal == true){
         printf(" I RECEIVED true SIGNAL IN MAIN FUNCTION\n"); 
         return 0;
@@ -183,6 +212,8 @@ void* altimeter(void *pArg)
 
 void processFunc(int counter, int recvRows, int recvCols){
     int threshold = 6000, maxLimit = 9000;
+
+    srand(time(NULL));
     
     printf("------ Altimeter Iteration %d ---------\n", counter);
     // Get time generated
@@ -225,4 +256,54 @@ void* userInput(void *pArg){
     }
 
     return 0;
+}
+
+// base station POSIX thread to send/receive msg to/from sensor nodes
+void* base_station_recv(void *arguments){
+    MPI_Status status;
+    int recv, i;
+
+    // create a custom MPI Datatype for the struct that will be sent from nodes, and received here in base station 
+    struct arg_struct_base_station base_station_args;
+    MPI_Datatype Valuetype;
+    MPI_Datatype datatype[8] = { MPI_INT, MPI_CHAR, MPI_INT, MPI_FLOAT, MPI_INT, MPI_INT, MPI_FLOAT, MPI_INT };
+    int blocklen[8] = {1, 256, 1, 1, 2, 4, 4, 8};
+    MPI_Aint disp[8];
+    MPI_Get_address(&base_station_args.iteration, &disp[0]);
+    MPI_Get_address(&base_station_args.timestamp, &disp[1]);
+    MPI_Get_address(&base_station_args.reporting_node_rank, &disp[2]);
+    MPI_Get_address(&base_station_args.reporting_node_ma, &disp[3]);
+    MPI_Get_address(&base_station_args.reporting_node_coord, &disp[4]);
+    MPI_Get_address(&base_station_args.recv_node_rank_arr, &disp[5]);
+    MPI_Get_address(&base_station_args.recv_node_ma_arr, &disp[6]);
+    MPI_Get_address(&base_station_args.recv_node_coord, &disp[7]);
+
+    for (i=7; i>=1; i--){
+        disp[i] = disp[i] - disp[i-1];
+    }
+    disp[0] = 0;
+    
+    MPI_Type_create_struct(8, blocklen, disp, datatype, &Valuetype);
+    MPI_Type_commit(&Valuetype);
+
+    while (1){
+        MPI_Recv(&base_station_args, 8, Valuetype, MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
+        if (status.MPI_TAG == MSG_SHUTODWN_BASE_STATION_THREAD){
+            printf(" base station recvied alert from node %d\n", status.MPI_SOURCE-1);
+            break;
+        }
+        else if (status.MPI_TAG == MSG_ALERT_BASE_STATION){
+            printf("base sation successfully got the scruct\n");
+            printf("values.iteration is %d, x_coord is %d, y_coord is %d, neighbour node rank is %d\n", 
+                    base_station_args.iteration, base_station_args.reporting_node_coord[0], 
+                    base_station_args.reporting_node_coord[1], base_station_args.recv_node_rank_arr[1]);
+
+            fputs( base_station_args.timestamp, stdout ); // for testing
+        }
+    }
+
+    printf("bye from base station thread\n");
+    MPI_Type_free(&Valuetype);
+    pthread_exit(NULL);
+    
 }
