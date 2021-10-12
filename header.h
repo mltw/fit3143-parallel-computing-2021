@@ -9,6 +9,7 @@ Reference: https://riptutorial.com/c/example/3250/calling-a-function-from-anothe
 #define HEADER_H_
 
 void* node_recv(void *arguments);
+void* base_station_recv(void *arguments);
 void* altimeter(void *pArg);
 void processFunc(int counter, int recvRows, int recvCols);
 void* userInput(void *pArg);
