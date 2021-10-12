@@ -13,10 +13,24 @@
 #define SHIFT_ROW 0
 #define SHIFT_COL 1
 #define MSG_SHUTDOWN 0
+#define MSG_SHUTODWN_BASE_STATION_THREAD 2
 #define MSG_ALERT_BASE_STATION 3
 #define MSG_REQ_NEIGHBOUR_NODE 4
 #define MSG_RES_NEIGHBOUR_NODE 5
 
+// struct to store necessary information for this node, and to be sent to the base station
+struct arg_struct_base_station {
+    int iteration;
+    char timestamp[256];
+
+    int reporting_node_rank;
+    float reporting_node_ma;
+    int reporting_node_coord[2];
+
+    int recv_node_rank_arr[4];
+    float recv_node_ma_arr[4];
+    int recv_node_coord[4][2];
+};
 
 
 // global struct for POSIX threads to retrieve the node's rank and moving average for that iteration
@@ -34,16 +48,6 @@ struct arg_struct_thread {
     float* recv_node_ma_arr;
 } *node_thread_args;
 
-struct arg_struct_base_station {
-    int reporting_node_rank;
-    int reporting_node_coord[2];
-    float reporting_node_ma;
-    
-    int recv_node_rank_arr[4];
-    int recv_node_coord[4][2];
-    float recv_node_ma_arr[4];
-
-} *node_base_station_args;
 
 /* This is the slave; each slave/process simulates one tsunameter sensor node */
 int node_io(MPI_Comm world_comm, MPI_Comm comm, int dims[], int threshold, int inputIterBaseStation){
@@ -86,15 +90,34 @@ int node_io(MPI_Comm world_comm, MPI_Comm comm, int dims[], int threshold, int i
 	MPI_Cart_shift( comm2D, SHIFT_ROW, DISP, &nbr_i_lo, &nbr_i_hi );
 	MPI_Cart_shift( comm2D, SHIFT_COL, DISP, &nbr_j_lo, &nbr_j_hi );
 
+    // create a custom MPI Datatype for that struct to be sent over to base station
+    struct arg_struct_base_station base_station_args;
+    MPI_Datatype Valuetype;
+    MPI_Datatype datatype[8] = { MPI_INT, MPI_CHAR, MPI_INT, MPI_FLOAT, MPI_INT, MPI_INT, MPI_FLOAT, MPI_INT };
+    int blocklen[8] = {1, 256, 1, 1, 2, 4, 4, 8};
+    MPI_Aint disp[8];
+    MPI_Get_address(&base_station_args.iteration, &disp[0]);
+    MPI_Get_address(&base_station_args.timestamp, &disp[1]);
+    MPI_Get_address(&base_station_args.reporting_node_rank, &disp[2]);
+    MPI_Get_address(&base_station_args.reporting_node_ma, &disp[3]);
+    MPI_Get_address(&base_station_args.reporting_node_coord, &disp[4]);
+    MPI_Get_address(&base_station_args.recv_node_rank_arr, &disp[5]);
+    MPI_Get_address(&base_station_args.recv_node_ma_arr, &disp[6]);
+    MPI_Get_address(&base_station_args.recv_node_coord, &disp[7]);
+
+    for (i=7; i>=1; i--){
+        disp[i] = disp[i] - disp[i-1];
+    }
+    disp[0] = 0;
+
+    MPI_Type_create_struct(8, blocklen, disp, datatype, &Valuetype);
+    MPI_Type_commit(&Valuetype);
+
     // array to store the values generated to calculate moving average (MA)
     // ####################!!!!!!!!!!!!!!!!!!!!****************************%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     // TODO: gotta edit this cuz nodes wont know the total num of iteration 
     ma_arr = (float*)malloc(100 * sizeof(float));
     memset(ma_arr, 0, 100 * sizeof(float));
-
-    // double *pX4Buff = NULL;
-    // pX4Buff = (double*)malloc(fileElementCount * sizeof(double));
-	// memset(pX4Buff, 0, fileElementCount * sizeof(double)); // Optional
 
     //  -------------------- test pthread -------------------------------------
 
@@ -198,9 +221,32 @@ int node_io(MPI_Comm world_comm, MPI_Comm comm, int dims[], int threshold, int i
         fclose(pFile);
      
         // if >=2 neighbours' MA match this node's MA, send a report to the base station
-        // MPI_Send(&my_cart_rank, 1, MPI_INT, 0, MSG_ALERT_BASE_STATION, world_comm);
- 
+        if (temp_counter >=2 ){
+            // initialise the struct values
+            base_station_args.iteration = counter; 
+            time_t rawtime;
+            struct tm * timeinfo;
+            time(&rawtime);
+            timeinfo = localtime (&rawtime);
+            sprintf(base_station_args.timestamp, "%s", (asctime(timeinfo)));
+            // printf ("Current local time and date in node is: %s\n", (asctime(timeinfo)));  
+            // printf ("Current local time and date in node but saved in struct is: %s\n", 
+            //         base_station_args.timestamp);  
 
+            base_station_args.reporting_node_rank = my_cart_rank; 
+            base_station_args.reporting_node_ma = mAvg;
+            base_station_args.reporting_node_coord[0] = coord[0];
+            base_station_args.reporting_node_coord[1] = coord[1];
+            for (i=0; i<4; i++){
+                base_station_args.recv_node_rank_arr[i] = arr[i];
+                base_station_args.recv_node_ma_arr[i] = node_thread_args->recv_node_ma_arr[arr[i]];
+                base_station_args.recv_node_coord[i][0] = arr[i]%dims[0];
+                base_station_args.recv_node_coord[i][1] = arr[i]%dims[1];
+            }
+
+            // send a report to base station
+            MPI_Send(&base_station_args, 8, Valuetype, 0, MSG_ALERT_BASE_STATION, world_comm);
+        }
 
 
         endTime = MPI_Wtime();
@@ -219,11 +265,18 @@ int node_io(MPI_Comm world_comm, MPI_Comm comm, int dims[], int threshold, int i
     
     MPI_Barrier(comm);
 
+    // use node 0 to send a msg to base station to terminate the base station's thread
+    if (my_cart_rank == 0)
+        MPI_Send(&my_cart_rank, 1, MPI_INT, 0, MSG_SHUTODWN_BASE_STATION_THREAD, world_comm);
+
     pthread_join(tid, NULL);
 
     free(node_thread_args);
     free(node_thread_args->recv_node_ma_arr);
     free(ma_arr);
+
+    MPI_Type_free(&Valuetype);
+
     MPI_Comm_free( &comm2D );
 	return 0;
 }
