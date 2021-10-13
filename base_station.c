@@ -38,10 +38,7 @@ struct arg_struct_base_station {
 int base_station_io(MPI_Comm world_comm, MPI_Comm comm, int inputIterBaseStation, int nrows, int ncols){
     /* TODO:
     
-    - EVERY ITERATION:
-        - Listen to incoming comm./report from ANY node (if any)
-        ** thread(POSIX/OpenMP) will act as a background worker to listen to the message from the sensor nodes
-        
+    - EVERY ITERATION:        
         - if received:
             - compare received report & seacrh entire array to determine if there is a match
                 - macthing coordinfates report (MUST BE EXACT MATCH)
@@ -65,11 +62,11 @@ int base_station_io(MPI_Comm world_comm, MPI_Comm comm, int inputIterBaseStation
         * loop the global array in a reverse manner when comparing the records to the received reports
     */
     
-    char buf[256]; // temporary
+    char buf[256]; 
     int size, nNodes, recv, thread_init;
     bool terminationSignal = false;
     
-    MPI_Request send_request[256]; // give it a max size 
+    MPI_Request send_request[256]; 
     MPI_Comm_size( world_comm, &size );
     nNodes = size-1;
     MPI_Status send_status[nNodes];
@@ -81,7 +78,7 @@ int base_station_io(MPI_Comm world_comm, MPI_Comm comm, int inputIterBaseStation
     // printf("received no of rows is %d\n", val.recvRows);
     // printf("received no of col is %d\n", val.recvCols);
     
-    // thread for Altimeter
+    // thread for altimeter
     pthread_t tid;
     thread_init = pthread_create(&tid, 0, altimeter, &val); // Create the thread
     if (thread_init != 0)
@@ -99,13 +96,11 @@ int base_station_io(MPI_Comm world_comm, MPI_Comm comm, int inputIterBaseStation
     if (thread_init != 0)
         printf("Error creating base station recv thread in base station\n");
 
-
-    
     // run for a fixed number of iterations which is set during compiled time
     for (int i =0; i <= inputIterBaseStation;i++){
-        //  printf("here\n");
          
          if (i == inputIterBaseStation){
+             // send termination signal to nodes & altimeter to shutdown gracefully
              for (int j = 1; j <= nNodes; j++){
                 MPI_Isend(buf, 0, MPI_CHAR, j, MSG_SHUTDOWN, world_comm, &send_request[j]);
              }
@@ -114,7 +109,8 @@ int base_station_io(MPI_Comm world_comm, MPI_Comm comm, int inputIterBaseStation
              printf("aites base station sending MSG_SHUTDOWN to altimeter at iteration %d\n", i);
              MPI_Isend(&terminate_altimeter, 1, MPI_INT, 0, MSG_SHUTDOWN, world_comm, &send_request[0]);
 
-             MPI_Waitall(nNodes, send_request, send_status);
+             MPI_Waitall(size, send_request, send_status);
+             printf("ALL SENT SUCCESSFULLYYYYY FROM BASE STATION\n");
          }
          else{
             sleep(10);
@@ -122,9 +118,6 @@ int base_station_io(MPI_Comm world_comm, MPI_Comm comm, int inputIterBaseStation
       
     }
 
-    
-    
-    //sleep(5); // for testing user input termination 
     pthread_join(tid, NULL);                                    // Wait for the thread to complete
     pthread_join(tid2, &resSignal);
     pthread_join(tid3, NULL); 
@@ -152,8 +145,6 @@ struct globalData {
     struct coordinates randCoord;
     float randFloat;
 };
-
-
 struct globalData globalArr[5]; 
 
 void* altimeter(void *pArg) 
@@ -161,21 +152,41 @@ void* altimeter(void *pArg)
     struct sizeGrid *arg = (struct sizeGrid *) pArg;
     // printf("ALTIMETER recv row is %d, recv col is %d\n", arg->recvRows, arg->recvCols);
 
-    char buf[256]; // temporary
+    char buf[256]; 
     MPI_Status status;
     MPI_Request receive_request;
     double startTime, endTime,elapsed;
-    int maxSize = 5, current=0, recv=-1;
+    int maxSize = 5, current=0, recv=-1,i=0,flag=-1;
+    int ready;
     
-    MPI_Irecv(&recv, 1, MPI_INT, 0, MSG_SHUTDOWN, MPI_COMM_WORLD, &receive_request);
-    for (int i = 0;i <=9; i++){
+    //MPI_Irecv(&recv, 1, MPI_INT, 0, MSG_SHUTDOWN, MPI_COMM_WORLD, &receive_request);
+    //MPI_Irecv(&recv, 1, MPI_INT, MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &receive_request);
+
+    // continue update the global array until we receive termination signal
+    while (1){
         startTime = MPI_Wtime();
         
+        if (flag !=0){
+            MPI_Irecv(&recv, 1, MPI_INT, MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &receive_request);
+            flag = 0;
+        }     
+        
+        // Receive termination signal
+        MPI_Test(&receive_request, &flag, &status);
+        if (flag != 0){
+            printf("I FINALLY RECEIVE TERMINATION SIGNAL\n");
+            flag = -1;
+            break;
+           }
+        else
+            printf("STILL WAITING IN ITERATION %d\n", i-1);
+     
         if (current <= maxSize-1){
             // still can insert
             printf("in if and i is: %d\n",i);
             processFunc(current, (arg->recvRows), (arg->recvCols));               // call helper func to fill the array
-            current++;                                               
+            current++;    
+            i++;                                           
         }
         else if (current == maxSize){
             // once we reset, then even the next iter will update in the correct place
@@ -185,29 +196,16 @@ void* altimeter(void *pArg)
             current = 0;                                                         // reset, start from index 0 again 
             processFunc(current, (arg->recvRows), (arg->recvCols));
             current++;
+            i++;
             
-        }
-
-        // Receive termination signal
-       
-        if (recv == 1){
-            // printf("Altimeter received termination signal from status.MPI_SOURCE %d, it will be stopped now.\n", status.MPI_SOURCE);
-            // return 0;
-            printf("Altimeter received termination signal from 0 at iteration %d, it will be stopped now and break out of the for loop.\n", i);
-            break;
-        }
-        else{
-            printf("Altimeter still waiting to recv msg from base station at iteration %d\n", i);
         }
 
        endTime = MPI_Wtime();
        elapsed = endTime - startTime;
        
-
-        
         // printf("start time is %.2f\n", startTime);
         // printf("end time is %.2f\n", endTime);
-        printf("Time elapsed for iteration %d is %.5f\n", i, endTime - startTime);
+        printf("Time elapsed for iteration %d is %.5f\n", i-1, endTime - startTime);
          // if whole operation in that iteration is less than 5 seconds, delay it to 5 second before next iteration
        if( elapsed <= 5){
             // printf("delayedddddd at iteration %d for %.5f seconds\n",i,5-elapsed);
@@ -217,16 +215,8 @@ void* altimeter(void *pArg)
         printf("--------------------------------------\n");
         
     }
-    printf("out of for loop of base station\n");
-    if (recv == -1){
-            MPI_Wait(&receive_request, &status);
-            printf("Altimeter received termination signal with tag %d from status.MPI_SOURCE %d out of for loop, it will be stopped now.\n", 
-            status.MPI_TAG, status.MPI_SOURCE);
-            
-        }
-        else{
-            printf("altimeter terminated in the for loop lo\n");
-        }
+
+    printf("bye from altimeter thread\n");
     pthread_exit (NULL);
     return 0;
 }
