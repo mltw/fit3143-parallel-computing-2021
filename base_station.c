@@ -9,7 +9,7 @@
 #include <unistd.h>
 #include<stdbool.h>  
 
-#define MSG_SHUTDOWN 0
+#define MSG_SHUTDOWN 88
 #define MAX_LENGTH 40
 #define MSG_SHUTODWN_BASE_STATION_THREAD 2
 #define MSG_ALERT_BASE_STATION 3
@@ -110,7 +110,11 @@ int base_station_io(MPI_Comm world_comm, MPI_Comm comm, int inputIterBaseStation
                 MPI_Isend(buf, 0, MPI_CHAR, j, MSG_SHUTDOWN, world_comm, &send_request[j]);
              }
              // send termination signal to altimeter 
-             MPI_Isend(buf, 0, MPI_CHAR, 0, MSG_SHUTDOWN, world_comm, &send_request[0]);
+             int terminate_altimeter = 1;
+             printf("aites base station sending MSG_SHUTDOWN to altimeter at iteration %d\n", i);
+             MPI_Isend(&terminate_altimeter, 1, MPI_INT, 0, MSG_SHUTDOWN, world_comm, &send_request[0]);
+
+             MPI_Waitall(nNodes, send_request, send_status);
          }
          else{
             sleep(10);
@@ -118,7 +122,7 @@ int base_station_io(MPI_Comm world_comm, MPI_Comm comm, int inputIterBaseStation
       
     }
 
-    MPI_Waitall(nNodes, send_request, send_status);
+    
     
     //sleep(5); // for testing user input termination 
     pthread_join(tid, NULL);                                    // Wait for the thread to complete
@@ -161,14 +165,15 @@ void* altimeter(void *pArg)
     MPI_Status status;
     MPI_Request receive_request;
     double startTime, endTime,elapsed;
-    int maxSize = 5, current=0;
+    int maxSize = 5, current=0, recv=-1;
     
-
+    MPI_Irecv(&recv, 1, MPI_INT, 0, MSG_SHUTDOWN, MPI_COMM_WORLD, &receive_request);
     for (int i = 0;i <=9; i++){
         startTime = MPI_Wtime();
         
         if (current <= maxSize-1){
             // still can insert
+            printf("in if and i is: %d\n",i);
             processFunc(current, (arg->recvRows), (arg->recvCols));               // call helper func to fill the array
             current++;                                               
         }
@@ -184,29 +189,45 @@ void* altimeter(void *pArg)
         }
 
         // Receive termination signal
-        MPI_Irecv(buf, 256, MPI_CHAR, MPI_ANY_SOURCE, MSG_SHUTDOWN, MPI_COMM_WORLD, &receive_request);
-        if (status.MPI_TAG == MSG_SHUTDOWN){
-            printf("Altimeter received termination signal, it will be stopped now.\n");
+       
+        if (recv == 1){
+            // printf("Altimeter received termination signal from status.MPI_SOURCE %d, it will be stopped now.\n", status.MPI_SOURCE);
             // return 0;
-            //break;
+            printf("Altimeter received termination signal from 0 at iteration %d, it will be stopped now and break out of the for loop.\n", i);
+            break;
+        }
+        else{
+            printf("Altimeter still waiting to recv msg from base station at iteration %d\n", i);
         }
 
        endTime = MPI_Wtime();
        elapsed = endTime - startTime;
+       
 
         
         // printf("start time is %.2f\n", startTime);
         // printf("end time is %.2f\n", endTime);
-        printf("Time elapsed for iteration %d is %.2f\n", i, endTime - startTime);
-         // if whole operation in that iteration is less than 1 seconds, delay it to 1 second before next iteration
-       if( elapsed <= 1){
-            // printf("delayedddddd at iteration %d for %.1f seconds\n",i,1-elapsed);
-            sleep((int)1 - elapsed);
+        printf("Time elapsed for iteration %d is %.5f\n", i, endTime - startTime);
+         // if whole operation in that iteration is less than 5 seconds, delay it to 5 second before next iteration
+       if( elapsed <= 5){
+            // printf("delayedddddd at iteration %d for %.5f seconds\n",i,5-elapsed);
+            sleep(5 - elapsed);
             //printf("SLEPT FOR iteration %d\n", i);
        }
         printf("--------------------------------------\n");
-        pthread_exit (NULL);
+        
     }
+    printf("out of for loop of base station\n");
+    if (recv == -1){
+            MPI_Wait(&receive_request, &status);
+            printf("Altimeter received termination signal with tag %d from status.MPI_SOURCE %d out of for loop, it will be stopped now.\n", 
+            status.MPI_TAG, status.MPI_SOURCE);
+            
+        }
+        else{
+            printf("altimeter terminated in the for loop lo\n");
+        }
+    pthread_exit (NULL);
     return 0;
 }
 
