@@ -33,6 +33,20 @@ struct arg_struct_base_station {
     int recv_node_coord[4][2];
 };
 
+struct coordinates {
+    int x;
+    int y;
+};
+
+// reference for getting current time: https://www.cplusplus.com/reference/ctime/localtime/
+struct globalData {
+    time_t rawtime;
+    struct tm *timeinfo;
+    struct coordinates randCoord;
+    float randFloat;
+};
+struct globalData globalArr[5]; 
+
 int sharedGlobalSignal = -1;
 pthread_mutex_t mutex;
 
@@ -59,9 +73,6 @@ int base_station_io(MPI_Comm world_comm, MPI_Comm comm, int inputIterBaseStation
          - avg comm time
          - time taken for base station 
       
-        
-        * can check the latest record in the shared global array if there are multiple records with the same coords
-        * loop the global array in a reverse manner when comparing the records to the received reports
     */
     
     char buf[256]; 
@@ -117,9 +128,7 @@ int base_station_io(MPI_Comm world_comm, MPI_Comm comm, int inputIterBaseStation
              pthread_mutex_unlock(&mutex);
              printf("MUTEX UNLOCKED\n");
              
-
-            
-             
+                 
          }
          else{
             sleep(10);
@@ -127,7 +136,7 @@ int base_station_io(MPI_Comm world_comm, MPI_Comm comm, int inputIterBaseStation
       
     }
 
-    pthread_join(tid, NULL);                                    // Wait for the thread to complete
+    //pthread_join(tid, NULL);                                    // Wait for the thread to complete
     //pthread_join(tid2, &resSignal);
     pthread_join(tid3, NULL); 
 
@@ -137,24 +146,22 @@ int base_station_io(MPI_Comm world_comm, MPI_Comm comm, int inputIterBaseStation
         //}
     //else 
         //printf("I DID NOT RECV SIGNAL YET\n");
+
+     
+     // last pthread should return received node info
+     int length = sizeof(globalArr)/sizeof(globalArr[0]);    
+     //printf("length of global Arr is %d\n", length);
+     for (int k= length-1;k>=0;k--){
+        //printf("arr at index %d\n", k);
+        //printf("time at index %d is %s\n",k,asctime(globalArr[k].timeinfo));
+        printf("random coordinates at index %d is (%d,%d)\n",k ,globalArr[k].randCoord.x,globalArr[k].randCoord.y);
+        printf("random float at index  %d is %.3f\n",k, globalArr[k].randFloat );
+ 
+     }
     
     return 0;
 }
 
-struct coordinates {
-    int x;
-    int y;
-};
-
-
-// reference for getting current time: https://www.cplusplus.com/reference/ctime/localtime/
-struct globalData {
-    time_t rawtime;
-    struct tm *timeinfo;
-    struct coordinates randCoord;
-    float randFloat;
-};
-struct globalData globalArr[5]; 
 
 void* altimeter(void *pArg) 
 {   
@@ -176,11 +183,16 @@ void* altimeter(void *pArg)
         pthread_mutex_lock(&mutex);
         if (sharedGlobalSignal == 1){
             printf("NOW I WILL STOP ALTIMETER\n");
+            pthread_mutex_unlock(&mutex);
+            printf("MUTEX UNLOCKED IN ALTIMETER\n");
             break;
         }
-        else
+        else{
             printf("GLOBAL SIGNAL RECEIVED SIGNAL MUTEX IN ALTIMETER IS STILL%d\n", sharedGlobalSignal);
-        pthread_mutex_unlock(&mutex);
+            }
+            pthread_mutex_unlock(&mutex);
+            
+        
   
        
         if (current <= maxSize-1){
@@ -232,7 +244,7 @@ void processFunc(int counter, int recvRows, int recvCols){
     // Get time generated
     time(&globalArr[counter].rawtime);
     globalArr[counter].timeinfo = localtime (&globalArr[counter].rawtime);
-    printf ("Current local time and date: %s", asctime(globalArr[counter].timeinfo));   
+    printf ("Current local time and date: %s", asctime(globalArr[counter].timeinfo)); 
     
     // Generate random coordinates 
     globalArr[counter].randCoord.x = rand() % recvRows;
@@ -253,21 +265,27 @@ void* userInput(void *pArg){
 	
 	char buffer[MAX_LENGTH + 1];
     memset (buffer, 0, MAX_LENGTH + 1);
-
+    
+    
+      
 	
 	/* Read a line of input from STDIN */
-   while (fgets (buffer, MAX_LENGTH, stdin) != NULL)
+	//while (1)
+    while (fgets (buffer, MAX_LENGTH, stdin) != NULL)
     {
+        
            
       /* Try to convert input to integer -1. All other values are wrong. */
-        long guess = strtol (buffer, NULL, 10);
-        if (guess == -1)
-        {
+        //if (fgets (buffer, MAX_LENGTH, stdin) != NULL){
+            long guess = strtol (buffer, NULL, 10);
+            if (guess == -1)
+            {
           /* Successfully read a -1 from input; exit with true */
-          printf ("User wish to terminate!\n");
-          currentSignal = true;
-          pthread_exit ((void*)currentSignal);
-        }
+            printf ("User wish to terminate!\n");
+            currentSignal = true;
+            pthread_exit ((void*)currentSignal);
+            }
+            //}
        
     }
 
