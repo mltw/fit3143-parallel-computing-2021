@@ -33,6 +33,8 @@ struct arg_struct_base_station {
     int recv_node_coord[4][2];
 };
 
+int sharedGlobalSignal = -1;
+pthread_mutex_t mutex;
 
 /* This is the base station, which is also the root rank; it acts as the master */
 int base_station_io(MPI_Comm world_comm, MPI_Comm comm, int inputIterBaseStation, int nrows, int ncols){
@@ -85,10 +87,10 @@ int base_station_io(MPI_Comm world_comm, MPI_Comm comm, int inputIterBaseStation
         printf("Error creating altimeter thread in base station\n");
     
     // thread to concurrently wait for input from user
-    pthread_t tid2;
-    thread_init = pthread_create(&tid2,0, userInput, &terminationSignal);
-    if (thread_init != 0)
-        printf("Error creating awaiting user input thread in base station\n");
+    //pthread_t tid2;
+    //thread_init = pthread_create(&tid2,0, userInput, &terminationSignal);
+    //if (thread_init != 0)
+        //printf("Error creating awaiting user input thread in base station\n");
 
     // thread to send/receive msg to/from sensor nodes
     pthread_t tid3;
@@ -102,15 +104,22 @@ int base_station_io(MPI_Comm world_comm, MPI_Comm comm, int inputIterBaseStation
          if (i == inputIterBaseStation){
              // send termination signal to nodes & altimeter to shutdown gracefully
              for (int j = 1; j <= nNodes; j++){
-                MPI_Isend(buf, 0, MPI_CHAR, j, MSG_SHUTDOWN, world_comm, &send_request[j]);
+                MPI_Send(buf, 0, MPI_CHAR, j, MSG_SHUTDOWN, world_comm);
+                
              }
-             // send termination signal to altimeter 
-             int terminate_altimeter = 1;
-             printf("aites base station sending MSG_SHUTDOWN to altimeter at iteration %d\n", i);
-             MPI_Isend(&terminate_altimeter, 1, MPI_INT, 0, MSG_SHUTDOWN, world_comm, &send_request[0]);
+             
+             
+             pthread_mutex_lock(&mutex);
+             printf("Changing the shared resource now.\n");
+             printf("GLOBAL SIGNAL PREVIOUSLY IS %d\n", sharedGlobalSignal);
+             sharedGlobalSignal = 1;
+             printf("GLOBAL SIGNAL NOW IS %d\n", sharedGlobalSignal);
+             pthread_mutex_unlock(&mutex);
+             printf("MUTEX UNLOCKED\n");
+             
 
-             MPI_Waitall(size, send_request, send_status);
-             printf("ALL SENT SUCCESSFULLYYYYY FROM BASE STATION\n");
+            
+             
          }
          else{
             sleep(10);
@@ -119,15 +128,15 @@ int base_station_io(MPI_Comm world_comm, MPI_Comm comm, int inputIterBaseStation
     }
 
     pthread_join(tid, NULL);                                    // Wait for the thread to complete
-    pthread_join(tid2, &resSignal);
+    //pthread_join(tid2, &resSignal);
     pthread_join(tid3, NULL); 
 
-    if ((bool)resSignal == true){
-        printf(" I RECEIVED true SIGNAL IN MAIN FUNCTION\n"); 
-        return 0;
-        }
-    else 
-        printf("I DID NOT RECV SIGNAL YET\n");
+    //if ((bool)resSignal == true){
+        //printf(" I RECEIVED true SIGNAL IN MAIN FUNCTION\n"); 
+        //return 0;
+        //}
+    //else 
+        //printf("I DID NOT RECV SIGNAL YET\n");
     
     return 0;
 }
@@ -156,31 +165,24 @@ void* altimeter(void *pArg)
     MPI_Status status;
     MPI_Request receive_request;
     double startTime, endTime,elapsed;
-    int maxSize = 5, current=0, recv=-1,i=0,flag=-1;
-    int ready;
+    int maxSize = 5, current=0,i=0;
     
-    //MPI_Irecv(&recv, 1, MPI_INT, 0, MSG_SHUTDOWN, MPI_COMM_WORLD, &receive_request);
-    //MPI_Irecv(&recv, 1, MPI_INT, MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &receive_request);
+
 
     // continue update the global array until we receive termination signal
     while (1){
         startTime = MPI_Wtime();
         
-        if (flag !=0){
-            MPI_Irecv(&recv, 1, MPI_INT, MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &receive_request);
-            flag = 0;
-        }     
-        
-        // Receive termination signal
-        MPI_Test(&receive_request, &flag, &status);
-        if (flag != 0){
-            printf("I FINALLY RECEIVE TERMINATION SIGNAL\n");
-            flag = -1;
+        pthread_mutex_lock(&mutex);
+        if (sharedGlobalSignal == 1){
+            printf("NOW I WILL STOP ALTIMETER\n");
             break;
-           }
+        }
         else
-            printf("STILL WAITING IN ITERATION %d\n", i-1);
-     
+            printf("GLOBAL SIGNAL RECEIVED SIGNAL MUTEX IN ALTIMETER IS STILL%d\n", sharedGlobalSignal);
+        pthread_mutex_unlock(&mutex);
+  
+       
         if (current <= maxSize-1){
             // still can insert
             printf("in if and i is: %d\n",i);
@@ -251,19 +253,22 @@ void* userInput(void *pArg){
 	
 	char buffer[MAX_LENGTH + 1];
     memset (buffer, 0, MAX_LENGTH + 1);
+
 	
 	/* Read a line of input from STDIN */
-  while (fgets (buffer, MAX_LENGTH, stdin) != NULL)
+   while (fgets (buffer, MAX_LENGTH, stdin) != NULL)
     {
+           
       /* Try to convert input to integer -1. All other values are wrong. */
-      long guess = strtol (buffer, NULL, 10);
-      if (guess == -1)
+        long guess = strtol (buffer, NULL, 10);
+        if (guess == -1)
         {
           /* Successfully read a -1 from input; exit with true */
           printf ("User wish to terminate!\n");
           currentSignal = true;
           pthread_exit ((void*)currentSignal);
         }
+       
     }
 
     return 0;
