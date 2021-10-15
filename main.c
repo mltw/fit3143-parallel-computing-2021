@@ -72,7 +72,7 @@ int main(int argc, char *argv[]){
             MPI_Send(&threshold, 1, MPI_INT, i, 0, MPI_COMM_WORLD);
         }
 
-	    base_station_io( MPI_COMM_WORLD, new_comm, inputIterBaseStation, nrows, ncols );
+	    base_station_io( MPI_COMM_WORLD, new_comm, inputIterBaseStation, threshold, nrows, ncols );
 	}
     else {
         // slaves only proceed with node_io after receiving the inputs from master 

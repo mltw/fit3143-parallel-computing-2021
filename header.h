@@ -13,7 +13,7 @@ void* base_station_recv(void *arguments);
 void* altimeter(void *pArg);
 void processFunc(int counter, int recvRows, int recvCols);
 void* userInput(void *pArg);
-int base_station_io(MPI_Comm world_comm, MPI_Comm comm,int inputIterBaseStation, int nrows, int ncols);
+int base_station_io(MPI_Comm world_comm, MPI_Comm comm, int inputIterBaseStation, int threshold, int nrows, int ncols);
 int node_io(MPI_Comm world_comm, MPI_Comm comm, int dims[], int threshold, int inputIterBaseStation);
 
 #endif /* HEADER_H_ */

@@ -31,6 +31,9 @@ struct arg_struct_base_station {
     int recv_node_rank_arr[4];
     float recv_node_ma_arr[4];
     int recv_node_coord[4][2];
+
+    // char reporting_node_ip_add[256];
+    // char recv_node_ip_add[4][256];
 };
 
 struct coordinates {
@@ -47,10 +50,12 @@ struct globalData {
 struct globalData globalArr[5]; 
 
 int sharedGlobalSignal = -1;
+int thresholdGlobal;
+int nrowsGlobal, ncolsGlobal;
 pthread_mutex_t mutex;
 
 /* This is the base station, which is also the root rank; it acts as the master */
-int base_station_io(MPI_Comm world_comm, MPI_Comm comm, int inputIterBaseStation, int nrows, int ncols){
+int base_station_io(MPI_Comm world_comm, MPI_Comm comm, int inputIterBaseStation, int threshold, int nrows, int ncols){
     /* TODO:
     
     - EVERY ITERATION:        
@@ -73,6 +78,9 @@ int base_station_io(MPI_Comm world_comm, MPI_Comm comm, int inputIterBaseStation
          - time taken for base station 
       
     */
+    nrowsGlobal = nrows;
+    ncolsGlobal = ncols;
+    thresholdGlobal = threshold;
     
     char buf[256]; 
     int size, nNodes, recv, thread_init;
@@ -135,7 +143,7 @@ int base_station_io(MPI_Comm world_comm, MPI_Comm comm, int inputIterBaseStation
       
     }
 
-    //pthread_join(tid, NULL);                                    // Wait for the thread to complete
+    pthread_join(tid, NULL);                                    // Wait for the thread to complete
     //pthread_join(tid2, &resSignal);
     pthread_join(tid3, NULL); 
 
@@ -235,7 +243,7 @@ void* altimeter(void *pArg)
 }
 
 void processFunc(int counter, int recvRows, int recvCols){
-    int threshold = 6000, maxLimit = 9000;
+    int maxLimit = 9000;
 
     srand(time(NULL));
     
@@ -257,7 +265,7 @@ void processFunc(int counter, int recvRows, int recvCols){
     printf("Random coordinates is (%d,%d)\n", globalArr[counter].randCoord.x,globalArr[counter].randCoord.y);
     
      // Generate random float between a range 
-     globalArr[counter].randFloat = ((maxLimit -threshold)*  ((float)rand() / RAND_MAX)) + threshold;
+     globalArr[counter].randFloat = ((maxLimit -thresholdGlobal)*  ((float)rand() / RAND_MAX)) + thresholdGlobal;
      printf("Random float of iteration %d is %.3f\n",counter, globalArr[counter].randFloat );
         
 }
@@ -302,10 +310,14 @@ void* base_station_recv(void *arguments){
     MPI_Status status;
     int recv, i;
 
+    FILE *pFile;
+
     // create a custom MPI Datatype for the struct that will be sent from nodes, and received here in base station 
     struct arg_struct_base_station base_station_args;
     MPI_Datatype Valuetype;
-    MPI_Datatype datatype[8] = { MPI_INT, MPI_CHAR, MPI_INT, MPI_FLOAT, MPI_INT, MPI_INT, MPI_FLOAT, MPI_INT };
+    //  char reporting_node_ip_add[256];
+    // char recv_node_ip_add[4][256];
+    MPI_Datatype datatype[8] = { MPI_INT, MPI_CHAR, MPI_INT, MPI_FLOAT, MPI_INT, MPI_INT, MPI_FLOAT, MPI_INT};
     int blocklen[8] = {1, 256, 1, 1, 2, 4, 4, 8};
     MPI_Aint disp[8];
     MPI_Get_address(&base_station_args.iteration, &disp[0]);
@@ -316,12 +328,14 @@ void* base_station_recv(void *arguments){
     MPI_Get_address(&base_station_args.recv_node_rank_arr, &disp[5]);
     MPI_Get_address(&base_station_args.recv_node_ma_arr, &disp[6]);
     MPI_Get_address(&base_station_args.recv_node_coord, &disp[7]);
+    // MPI_Get_address(&base_station_args.reporting_node_ip_add, &disp[8]);
+    // MPI_Get_address(&base_station_args.recv_node_ip_add, &disp[9]);
 
     for (i=7; i>=1; i--){
         disp[i] = disp[i] - disp[i-1];
     }
     disp[0] = 0;
-    
+
     MPI_Type_create_struct(8, blocklen, disp, datatype, &Valuetype);
     MPI_Type_commit(&Valuetype);
 
@@ -332,12 +346,108 @@ void* base_station_recv(void *arguments){
             break;
         }
         else if (status.MPI_TAG == MSG_ALERT_BASE_STATION){
-            printf("base sation successfully got the scruct\n");
+            printf("base sation successfully got the scruct from %d\n", status.MPI_SOURCE);
             printf("values.iteration is %d, x_coord is %d, y_coord is %d, neighbour node rank is %d\n", 
                     base_station_args.iteration, base_station_args.reporting_node_coord[0], 
                     base_station_args.reporting_node_coord[1], base_station_args.recv_node_rank_arr[1]);
 
             fputs( base_station_args.timestamp, stdout ); // for testing
+
+            
+            int true_alert = 0, matching_nodes = 0, has_matched_rand_coord = 0;
+            int length = sizeof(globalArr)/sizeof(globalArr[0]);  
+            pFile = fopen("base_station_log.txt", "a");
+            
+            // loop through the global array to see if there are matching coordinates
+            for (int k= length-1; k>=0; k--){
+                if ((globalArr[k].randCoord.x == base_station_args.reporting_node_coord[0]) 
+                    && (globalArr[k].randCoord.y == base_station_args.reporting_node_coord[1])){
+        
+                        if (base_station_args.reporting_node_ma >= globalArr[k].randFloat-300 
+                            && base_station_args.reporting_node_ma <= globalArr[k].randFloat+300){
+                                true_alert = 1;
+                                // fprintf(pFile, "haha reporting ma: %f\n", base_station_args.reporting_node_ma);
+                                // fprintf(pFile, "haha globalArr de ma: %f\n", globalArr[k].randFloat);
+                                // fprintf(pFile, "haha globalArr de coord: (%d,%d)\n",globalArr[k].randCoord.x, globalArr[k].randCoord.y);
+                                break;
+                            }
+                    }
+            }
+
+            // now, start writing into the file
+            fprintf(pFile, "--------------------------------------------------------------\n");
+            fprintf(pFile, "Iteration: %d\n", base_station_args.iteration);
+            
+            char *node_timestamp = base_station_args.timestamp;
+            time_t t;
+            t = time(NULL);
+            char *logged_timestamp = ctime(&t);
+            // printf("%s -\n", logged_timestamp);
+            // time_t t1;
+            // t1 = time(NULL);
+            
+
+            // char C[27];
+            // ctime_r(&t1, &C);
+            
+            // time_t rawtime_log;
+            // struct tm * timeinfo_log;
+            // time(&rawtime_log);
+            // timeinfo_log = localtime (&rawtime_log);
+            // time still got bug 
+
+            // time and alert type
+            fprintf(pFile, "Logged Time: \t\t\t%s", logged_timestamp);
+            fprintf(pFile, "Alert reported time: \t%s\n", node_timestamp);
+            fprintf(pFile, "Alert type: %s\n", true_alert==1? "Match (True)" : "Mismatch (False)");
+
+            // reporting node
+            fprintf(pFile, "Reporting Node\tCoord.\tHeight (m)\tIPv4\n");
+            fprintf(pFile,"%d\t\t\t\t(%d,%d)\t%f\t???\n", 
+                    base_station_args.reporting_node_rank,
+                    (int)floor(base_station_args.reporting_node_rank/ncolsGlobal),
+                    base_station_args.reporting_node_rank%nrowsGlobal, // is this %?, will check agn 
+                    base_station_args.reporting_node_ma);  
+
+            // adjacent nodes
+            fprintf(pFile, "\nAdjacent Nodes\tCoord.\tHeight (m)\tIPv4\n");
+            for (i=0; i<4; i++){
+                if (base_station_args.recv_node_rank_arr[i] >=0){
+                    fprintf(pFile, "%d\t\t\t\t(%d,%d)\t%f\t???\n", 
+                    base_station_args.recv_node_rank_arr[i],
+                    base_station_args.recv_node_coord[i][0],
+                    base_station_args.recv_node_coord[i][1],
+                    base_station_args.recv_node_ma_arr[i]);
+
+                    matching_nodes++;
+                }
+            }
+
+            // satellite altimeter reporting time and height
+            for (int k= length-1; k>=0; k--){
+                if ((globalArr[k].randCoord.x == base_station_args.reporting_node_coord[0]) 
+                    && (globalArr[k].randCoord.y == base_station_args.reporting_node_coord[1])){
+                        fprintf(pFile, "\nSatellite altimeter reporting time: %s", globalArr[k].timestamp);
+                        fprintf(pFile, "Satellite altimeter reporting height (m): %f\n", globalArr[k].randFloat);
+                        has_matched_rand_coord = 1;
+                        break;
+                    }
+            }
+            // if no matching coordinates from altimeter, just put a "-"
+            if (has_matched_rand_coord != 1){
+                fprintf(pFile, "\nSatellite altimeter reporting time: -\n");
+                fprintf(pFile, "Satellite altimeter reporting height (m): -\n");
+            }
+
+            // remaining 
+            fprintf(pFile, "\nCommunication time (seconds): ?? \n");
+            fprintf(pFile, "Total Messages send between reporting node and base station: 1\n");
+            fprintf(pFile, "Number of adjacent matches to reporting node: %d\n", matching_nodes);
+            fprintf(pFile, "Max. tolerance range between nodes readings (m): 300\n");
+            fprintf(pFile, "Max. tolerance range between satellite altimeter and reporting node readings (m): 300\n\n");
+
+        
+            fclose(pFile);
         }
     }
 
