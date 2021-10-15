@@ -40,8 +40,7 @@ struct coordinates {
 
 // reference for getting current time: https://www.cplusplus.com/reference/ctime/localtime/
 struct globalData {
-    time_t rawtime;
-    struct tm *timeinfo;
+    char timestamp[256];
     struct coordinates randCoord;
     float randFloat;
 };
@@ -153,7 +152,7 @@ int base_station_io(MPI_Comm world_comm, MPI_Comm comm, int inputIterBaseStation
      //printf("length of global Arr is %d\n", length);
      for (int k= length-1;k>=0;k--){
         //printf("arr at index %d\n", k);
-        //printf("time at index %d is %s\n",k,asctime(globalArr[k].timeinfo));
+        printf("time at index %d is %s\n",k,globalArr[k].timestamp);
         printf("random coordinates at index %d is (%d,%d)\n",k ,globalArr[k].randCoord.x,globalArr[k].randCoord.y);
         printf("random float at index  %d is %.3f\n",k, globalArr[k].randFloat );
  
@@ -242,9 +241,15 @@ void processFunc(int counter, int recvRows, int recvCols){
     
     printf("------ Altimeter Iteration %d ---------\n", counter);
     // Get time generated
-    time(&globalArr[counter].rawtime);
-    globalArr[counter].timeinfo = localtime (&globalArr[counter].rawtime);
-    printf ("Current local time and date: %s", asctime(globalArr[counter].timeinfo)); 
+    time_t rawtime;
+    struct tm * timeinfo;
+    time(&rawtime);
+    timeinfo = localtime (&rawtime);
+    sprintf(globalArr[counter].timestamp, "%s", (asctime(timeinfo)));
+    printf("Current date and time is %s\n",globalArr[counter].timestamp);
+   
+ 
+    
     
     // Generate random coordinates 
     globalArr[counter].randCoord.x = rand() % recvRows;
