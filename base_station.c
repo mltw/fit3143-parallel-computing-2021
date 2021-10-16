@@ -329,8 +329,10 @@ void* base_station_recv(void *arguments){
 
     MPI_Type_create_struct(8, blocklen, disp, datatype, &Valuetype);
     MPI_Type_commit(&Valuetype);
+    double startTime, endTime,elapsed;
 
     while (1){
+        startTime = MPI_Wtime();
         MPI_Recv(&base_station_args, 8, Valuetype, MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
         if (status.MPI_TAG == MSG_SHUTODWN_BASE_STATION_THREAD){
             printf(" base station recvied alert from node %d\n", status.MPI_SOURCE-1);
@@ -368,6 +370,15 @@ void* base_station_recv(void *arguments){
             }
             pthread_mutex_unlock(&mutex2);
             printf("I FINISH COMPARISION FOR MUTEX 2 NOW UNLOCK IT\n");
+        
+        endTime = MPI_Wtime();
+        elapsed = endTime - startTime;
+        if( elapsed <= 5){
+            // printf("delayedddddd at iteration %d for %.5f seconds\n",i,5-elapsed);
+            sleep(5 - elapsed);
+            //printf("SLEPT FOR iteration %d\n", i);
+        }
+
 
             // now, start writing into the file
             fprintf(pFile, "--------------------------------------------------------------\n");
