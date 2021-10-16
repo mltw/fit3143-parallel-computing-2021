@@ -53,25 +53,11 @@ int sharedGlobalSignal = -1;
 int thresholdGlobal;
 int nrowsGlobal, ncolsGlobal;
 pthread_mutex_t mutex;
+pthread_mutex_t mutex2;
 
 /* This is the base station, which is also the root rank; it acts as the master */
 int base_station_io(MPI_Comm world_comm, MPI_Comm comm, int inputIterBaseStation, int threshold, int nrows, int ncols){
-    /* TODO:
-    
-    - EVERY ITERATION:        
-        - if received:
-            - compare received report & seacrh entire array to determine if there is a match
-                - macthing coordinfates report (MUST BE EXACT MATCH)
-                - matching bet. timestamp x (+/- x sec)
-                - matching bet. sea column heights y (+/- y m)
-            - based on timestamp:
-                - proper comparisons betw. data from sensor node & data from altimeter to validate an alert
-            
-    - when reporting an alert: log
-         - details of reporting node & adjacent node
-         - comparison with altimeter
-         - node details (coordinates)
-      
+    /* TODO:      
       - before program terminates, generate summary
          - no of alerts (true & false)
          - avg comm time
@@ -243,6 +229,9 @@ void* altimeter(void *pArg)
 }
 
 void processFunc(int counter, int recvRows, int recvCols){
+
+    pthread_mutex_lock(&mutex2);
+    printf("INSERTING INTO ARRAY, UPDATING\n");
     int maxLimit = 9000;
 
     srand(time(NULL));
@@ -267,6 +256,8 @@ void processFunc(int counter, int recvRows, int recvCols){
      // Generate random float between a range 
      globalArr[counter].randFloat = ((maxLimit -thresholdGlobal)*  ((float)rand() / RAND_MAX)) + thresholdGlobal;
      printf("Random float of iteration %d is %.3f\n",counter, globalArr[counter].randFloat );
+     pthread_mutex_unlock(&mutex2);
+     printf("DONE INSERTION, NOW MUTEX UNLOCK FOR SHARED GLOBAL ARR\n");
         
 }
 
@@ -359,6 +350,8 @@ void* base_station_recv(void *arguments){
             pFile = fopen("base_station_log.txt", "a");
             
             // loop through the global array to see if there are matching coordinates
+            pthread_mutex_lock(&mutex2);
+            printf("NOW COMPARING IN FOR LOOP SECOND MUTEX\n");
             for (int k= length-1; k>=0; k--){
                 if ((globalArr[k].randCoord.x == base_station_args.reporting_node_coord[0]) 
                     && (globalArr[k].randCoord.y == base_station_args.reporting_node_coord[1])){
@@ -373,6 +366,8 @@ void* base_station_recv(void *arguments){
                             }
                     }
             }
+            pthread_mutex_unlock(&mutex2);
+            printf("I FINISH COMPARISION FOR MUTEX 2 NOW UNLOCK IT\n");
 
             // now, start writing into the file
             fprintf(pFile, "--------------------------------------------------------------\n");
