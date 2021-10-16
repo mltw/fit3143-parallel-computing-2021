@@ -56,7 +56,7 @@ int main(int argc, char *argv[]){
         // printf("main if"); 
 
         // when startup, user is able to specify no. of iterations for base station to run
-        printf("Please enter the number of iterations you wish the base station will run. You may enter '-1' anytime during the program execution to stop the program.\n");
+        printf("Please enter the number of iterations you wish the base station will run. \n");
         printf("Number of iterations that base station runs:\n");
         scanf("%d", &inputIterBaseStation);
 
@@ -68,7 +68,7 @@ int main(int argc, char *argv[]){
         int i = 1;
         // printf("size: %d\n", size);
         for (i=1; i < size; i++){
-            MPI_Send(&inputIterBaseStation, 1, MPI_INT, i, 0, MPI_COMM_WORLD);
+            // MPI_Send(&inputIterBaseStation, 1, MPI_INT, i, 0, MPI_COMM_WORLD);
             MPI_Send(&threshold, 1, MPI_INT, i, 0, MPI_COMM_WORLD);
         }
 
@@ -76,13 +76,13 @@ int main(int argc, char *argv[]){
 	}
     else {
         // slaves only proceed with node_io after receiving the inputs from master 
-        MPI_Recv(&inputIterBaseStation, 1, MPI_INT, 0, 0, MPI_COMM_WORLD, &status );
+        // MPI_Recv(&inputIterBaseStation, 1, MPI_INT, 0, 0, MPI_COMM_WORLD, &status );
         MPI_Recv(&threshold, 1, MPI_INT, 0, 0, MPI_COMM_WORLD, &status );
         
         printf("\nElse inputIter: %d\n", inputIterBaseStation);
         printf("Else thres: %d\n", threshold);
 
-	    node_io( MPI_COMM_WORLD, new_comm, dims, threshold, inputIterBaseStation);
+	    node_io( MPI_COMM_WORLD, new_comm, dims, threshold);
     }
     
     

@@ -62,7 +62,7 @@ pthread_mutex_t mutex_node = PTHREAD_MUTEX_INITIALIZER;
 
 
 /* This is the slave; each slave/process simulates one tsunameter sensor node */
-int node_io(MPI_Comm world_comm, MPI_Comm comm, int dims[], int threshold, int inputIterBaseStation){
+int node_io(MPI_Comm world_comm, MPI_Comm comm, int dims[], int threshold){
     printf("in node\n");
     int ndims=2, size, my_rank, reorder, my_cart_rank, ierr, masterSize, i;
     float randNum, mAvg;
