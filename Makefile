@@ -8,8 +8,8 @@ Base_station: base_station.c
 Node:	node.c
 
 run:
-	mpirun --oversubscribe -np 4 mainOut
+	mpirun --oversubscribe -np 5 mainOut 2 2
 
 clean :
-	/bin/rm -f mainOut *.o
+	/bin/rm -f mainOut *.o *.txt
 
