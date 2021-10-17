@@ -134,7 +134,6 @@ int node_io(MPI_Comm world_comm, MPI_Comm comm, int dims[], int threshold){
     if (thread_init != 0)
         printf("Error creating thread in node %d", my_rank);
 
-    // -------------------------------------------------------------------------
     int counter = 0;
     double startTime, endTime;
 
@@ -193,8 +192,6 @@ int node_io(MPI_Comm world_comm, MPI_Comm comm, int dims[], int threshold){
                                 arr_char[i], node_thread_args->recv_node_ma_arr[arr[i]]);
                         temp_counter+=1;
                     }
-
-
                 }
             }
         }
@@ -238,7 +235,7 @@ int node_io(MPI_Comm world_comm, MPI_Comm comm, int dims[], int threshold){
  
         counter++;
     }
-    while (node_thread_args->end >=0 );
+    while (node_thread_args->end >=0);
     
     MPI_Barrier(comm);
 
