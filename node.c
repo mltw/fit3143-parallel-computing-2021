@@ -54,7 +54,6 @@ struct arg_struct_thread {
 
 /* This is the slave; each slave/process simulates one tsunameter sensor node */
 int node_io(MPI_Comm world_comm, MPI_Comm comm, int dims[], int threshold){
-    printf("in node\n");
     int ndims=2, size, my_rank, reorder, my_cart_rank, ierr, masterSize, i;
     float randNum, mAvg;
 	MPI_Comm comm2D;
@@ -72,7 +71,6 @@ int node_io(MPI_Comm world_comm, MPI_Comm comm, int dims[], int threshold){
     snprintf(pOutputFileName, 20, "node_%d.txt", my_rank);
 
     MPI_Dims_create(size, ndims, dims);
-    printf("Slave Rank: %d. Comm Size: %d: Grid Dimension = [%d x %d] \n",my_rank,size,dims[0],dims[1]);
 
     // create cartesian mapping
 	wrap_around[0] = 0;
