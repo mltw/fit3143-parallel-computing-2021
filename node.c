@@ -1,3 +1,11 @@
+/*
+FIT3143 S2 2021 Assignment 2 
+Topic: Tsunami Detection in a Distributed Wireless Sensor Network (WSN)
+Group: MA_LAB-04-Team-05
+Authors: Tan Ke Xin, Marcus Lim
+*/
+
+
 #include "header.h"
 #include <stdio.h>
 #include <math.h>
@@ -8,13 +16,6 @@
 #include <time.h>
 #include <unistd.h>
 #include <pthread.h>
-// header files to get IP address of the system
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <sys/ioctl.h>
-#include <netinet/in.h>
-#include <net/if.h>
-#include <arpa/inet.h>
 
 #define DISP 1
 #define SHIFT_ROW 0
@@ -43,12 +44,12 @@ struct arg_struct_base_station {
 
 // global struct for POSIX threads to retrieve the node's rank and moving average for that iteration
 struct arg_struct_thread {
-    float node_mAvg; // this node's MA, updated as a new MA is generated in each iteration
-    int end; // acts as a "lock", it'll change value once a termination message is received from base station
-    int rank; // this node's rank 
-    MPI_Comm world_comm; // the world communicator
-    MPI_Comm comm; // the slaves/virtual topology communicator
-    float* recv_node_ma_arr; // an array to store all neighbour nodes' MA
+    float node_mAvg;            // this node's MA, updated as a new MA is generated in each iteration
+    int end;                    // acts as a "lock", it'll change value once a termination message is received from base station
+    int rank;                   // this node's rank 
+    MPI_Comm world_comm;        // the world communicator
+    MPI_Comm comm;              // the slaves/virtual topology communicator
+    float* recv_node_ma_arr;    // an array to store all neighbour nodes' MA
 } *node_thread_args;
 
 
@@ -59,12 +60,12 @@ int node_io(MPI_Comm world_comm, MPI_Comm comm, int dims[], int threshold){
 	MPI_Comm comm2D;
 	int coord[ndims];
 	int wrap_around[ndims];
-    int nbr_i_lo, nbr_i_hi, nbr_j_lo, nbr_j_hi; // stores rank of top, bottom, left, right neighbour respectively
+    int nbr_i_lo, nbr_i_hi, nbr_j_lo, nbr_j_hi;             // stores rank of top, bottom, left, right neighbour respectively
     float* ma_arr=NULL;
 
-    MPI_Comm_size(world_comm, &masterSize); // size of the master communicator
-  	MPI_Comm_size(comm, &size); // size of the slave communicator
-	MPI_Comm_rank(comm, &my_rank);  // rank of the slave communicator
+    MPI_Comm_size(world_comm, &masterSize);                 // size of the master communicator
+  	MPI_Comm_size(comm, &size);                             // size of the slave communicator
+	MPI_Comm_rank(comm, &my_rank);                          // rank of the slave communicator
 
     char* pOutputFileName = (char*) malloc(20 * sizeof(char));
     FILE *pFile;
@@ -74,9 +75,10 @@ int node_io(MPI_Comm world_comm, MPI_Comm comm, int dims[], int threshold){
 
     // create cartesian mapping
 	wrap_around[0] = 0;
-	wrap_around[1] = 0; // periodic shift is false
+	wrap_around[1] = 0;                                     // periodic shift is false
 	reorder = 0; 
 	ierr = 0;
+
     // use 'comm' instead of 'world_comm' to only include the slaves communicators
 	ierr = MPI_Cart_create(comm, ndims, dims, wrap_around, reorder, &comm2D);
 	if(ierr != 0) 
@@ -270,7 +272,7 @@ void* node_recv(void *arguments){
     float recv;
 
     while (node_thread_args->end >= 0){
-        
+        // receive message from ANY_SOURCE & ANY_TAG, perform appropriate actions based on tag received
         MPI_Recv(&recv, 1, MPI_INT, MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
 
         if (status.MPI_TAG == MSG_REQ_NEIGHBOUR_NODE){

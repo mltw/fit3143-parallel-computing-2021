@@ -1,4 +1,10 @@
 /* 
+FIT3143 S2 2021 Assignment 2 
+Topic: Tsunami Detection in a Distributed Wireless Sensor Network (WSN)
+Group: MA_LAB-04-Team-05
+Authors: Tan Ke Xin, Marcus Lim
+
+
 This is just a header file to store function declarations.
 Reference: https://riptutorial.com/c/example/3250/calling-a-function-from-another-c-file
 */
