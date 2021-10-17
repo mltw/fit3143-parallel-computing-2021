@@ -26,36 +26,31 @@
 #define MSG_RES_NEIGHBOUR_NODE 5
 
 // struct to store necessary information for this node, and to be sent to the base station
-struct arg_struct_base_station {
-    int iteration;
-    char timestamp[256];
 
+struct arg_struct_base_station {
+    int iteration; // iteration of the sensor nodes
+    char timestamp[256]; // time logged
+
+    // reporting node rank, moving average and coordinates
     int reporting_node_rank;
     float reporting_node_ma;
     int reporting_node_coord[2];
 
+    // receiving nodes (ie neighbour nodes) rank, moving average and coordinates
     int recv_node_rank_arr[4];
     float recv_node_ma_arr[4];
     int recv_node_coord[4][2];
-
-    // char reporting_node_ip_add[256];
-    // char recv_node_ip_add[4][256];
 };
 
 
 // global struct for POSIX threads to retrieve the node's rank and moving average for that iteration
 struct arg_struct_thread {
-    // float node_mAvg;
-    // int node_rank;
-    // MPI_Comm node_comm;
-    // float* recv_node_mAvg;
-    float node_mAvg;
-    int end;
-    int rank;
-    int updated_neighbour_ma;
-    MPI_Comm world_comm;
-    MPI_Comm comm;
-    float* recv_node_ma_arr;
+    float node_mAvg; // this node's MA, updated as a new MA is generated in each iteration
+    int end; // acts as a "lock", it'll change value once a termination message is received from base station
+    int rank; // this node's rank 
+    MPI_Comm world_comm; // the world communicator
+    MPI_Comm comm; // the slaves/virtual topology communicator
+    float* recv_node_ma_arr; // an array to store all neighbour nodes' MA
 } *node_thread_args;
 
 pthread_mutex_t mutex_node = PTHREAD_MUTEX_INITIALIZER;
@@ -105,8 +100,6 @@ int node_io(MPI_Comm world_comm, MPI_Comm comm, int dims[], int threshold){
     // create a custom MPI Datatype for that struct to be sent over to base station
     struct arg_struct_base_station base_station_args;
     MPI_Datatype Valuetype;
-    //  char reporting_node_ip_add[256];
-    // char recv_node_ip_add[4][256];
     MPI_Datatype datatype[8] = { MPI_INT, MPI_CHAR, MPI_INT, MPI_FLOAT, MPI_INT, MPI_INT, MPI_FLOAT, MPI_INT};
     int blocklen[8] = {1, 256, 1, 1, 2, 4, 4, 8};
     MPI_Aint disp[8];
@@ -139,7 +132,6 @@ int node_io(MPI_Comm world_comm, MPI_Comm comm, int dims[], int threshold){
     node_thread_args = malloc(sizeof(struct arg_struct_thread) * 1);
     node_thread_args->end = 0;
     node_thread_args->rank = my_cart_rank;
-    node_thread_args->updated_neighbour_ma = 0;
     node_thread_args->comm = comm;
     node_thread_args->world_comm = world_comm;
     node_thread_args->recv_node_ma_arr = malloc(sizeof(float) * size);
@@ -187,31 +179,6 @@ int node_io(MPI_Comm world_comm, MPI_Comm comm, int dims[], int threshold){
         }
         mAvg = (float) sum / (counter+1 > 100 ? 100 : counter +1 );
 
-
-
-        // calculate MA
-        // float sum = 0;
-        // for (i=0; i < (counter+1); i++){
-        //     if (i>=100){
-        //         // if ma_arr is full, we replace the most initial values (FIFO)
-        //         ma_arr[i%100] = randNum;
-        //         sum += ma_arr[i%100];
-        //     }
-        //     else{
-        //         printf("MA_arr de else\n");
-        //         sum += ma_arr[i];
-        //     }
-        // }
-        // mAvg = (float) sum / (counter+1 > 100 ? 100 : counter +1 );
-        // printf("%f\n", mAvg);
-
-        // wait for all nodes to complete computing their MA, then only we check if MA > threshold
-        // MPI_Barrier(comm); 
-
-        // if (mAvg > threshold){
-        //     printf("%f, hi\n", mAvg);
-        // }
-
         printf("Rank %d generated %f\n", my_cart_rank, mAvg);
         node_thread_args->node_mAvg = mAvg;
         
@@ -221,10 +188,6 @@ int node_io(MPI_Comm world_comm, MPI_Comm comm, int dims[], int threshold){
         fprintf(pFile, "Generated: %f\n", randNum);
         fprintf(pFile, "Moving average is: %f\n", mAvg);
         
-
-        // ------------------ test send to neighbour node ----------------------
-        // MPI_Request send_request[4];
-        // if (my_cart_rank == 0){
         
         int arr[4] = {nbr_i_lo, nbr_i_hi, nbr_j_lo, nbr_j_hi};  
         char* arr_char[] = {"top neighbour", "bottom neighbour", "left neighbour", "right neighbour"};
@@ -234,35 +197,16 @@ int node_io(MPI_Comm world_comm, MPI_Comm comm, int dims[], int threshold){
         // first iteration, we don't send, since other nodes may not have any value yet
         if ((mAvg > threshold) && (counter !=0)){
 
-            // pthread_mutex_lock(&mutex_node);
-            // printf("3) node_io MUTEX LOCKED at i=%d after mpi send done\n", i);
-            // printf("ok node_io MUTEX LOCKED before le for loop\n ");
-
-
             for (i=0; i<4; i++){
                 // only send to neighbours that exist
                 if ( arr[i] >=0 ){
                     printf("in %s of rank %d and sending to %d\n", arr_char[i], my_rank, arr[i]+1);
 
-                    // pthread_mutex_lock(&mutex_node);
-                    // printf("3) node_io MUTEX LOCKED at i=%d after mpi send done\n", i);
-                    MPI_Send(&my_cart_rank, 1, MPI_INT, arr[i]+1, MSG_REQ_NEIGHBOUR_NODE, world_comm);
+                    MPI_Send(&my_cart_rank, 1, MPI_INT, arr[i]+1, MSG_REQ_NEIGHBOUR_NODE, world_comm);   
 
-                    // pthread_mutex_unlock(&mutex_node);
-                    // printf("4) ok node_io MUTEX UNLOCKED at i=%d after sending to base station\n", i);      
-
-                    
 
                     printf("in %s of rank %d and send done\n", arr_char[i], my_rank);
-                    // printf("stored in array value of nbr_i_hi is %f\n", node_thread_args->recv_node_ma_arr[nbr_i_hi]);
 
-                    // fprintf(pFile, "value of %s stored in array is %f\n", 
-                    //                 arr_char[i], node_thread_args->recv_node_ma_arr[arr[i]]);
-                    // don't calculate neighbours' MA until received the latest updated one
-                    // while (node_thread_args->updated_neighbour_ma==1){
-
-                        // pthread_mutex_lock(&mutex_node);
-                        // printf("3) node_io MUTEX LOCKED at i=%d after mpi send done\n", i);
                         
                     float neighbour_ma = node_thread_args->recv_node_ma_arr[arr[i]];
 
@@ -272,14 +216,8 @@ int node_io(MPI_Comm world_comm, MPI_Comm comm, int dims[], int threshold){
                         temp_counter+=1;
                     }
 
-                        // node_thread_args->updated_neighbour_ma = 0;
 
-                        // pthread_mutex_unlock(&mutex_node);
-                        // printf("4) ok node_io MUTEX UNLOCKED at i=%d after storing in array\n", i);
                 }
-                        // node_thread_args->updated_neighbour_ma = 0;
-                    // }
-                    // node_thread_args->updated_neighbour_ma = 0;
             }
         }
             
@@ -297,9 +235,6 @@ int node_io(MPI_Comm world_comm, MPI_Comm comm, int dims[], int threshold){
             time(&rawtime);
             timeinfo = localtime (&rawtime);
             sprintf(base_station_args.timestamp, "%s", (asctime(timeinfo)));
-            // printf ("Current local time and date in node is: %s\n", (asctime(timeinfo)));  
-            // printf ("Current local time and date in node but saved in struct is: %s\n", 
-            //         base_station_args.timestamp);  
 
             base_station_args.reporting_node_rank = my_cart_rank; 
             base_station_args.reporting_node_ma = mAvg;
@@ -407,11 +342,9 @@ void* node_recv(void *arguments){
     float recv;
 
     while (node_thread_args->end >= 0){
+        
         MPI_Recv(&recv, 1, MPI_INT, MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
-        // if (status.MPI_TAG == MSG_BASE_TO_NODE_SHUTDOWN_THREAD){
-        //     printf("received termination msg from base_station to thread %d", rank);
-        //     break;
-        // }
+
         if (status.MPI_TAG == MSG_REQ_NEIGHBOUR_NODE){
             printf("im node %d (world_rank %d), and i received request msg from node %d (world_rank %d)\n", 
                     rank, rank+1, status.MPI_SOURCE-1, status.MPI_SOURCE);
