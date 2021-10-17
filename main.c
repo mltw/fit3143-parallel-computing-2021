@@ -53,7 +53,6 @@ int main(int argc, char *argv[]){
     // the others are slaves, and thus would be in another color
     MPI_Comm_split( MPI_COMM_WORLD,rank == 0, 0, &new_comm);
     if (rank == 0) {   
-        // printf("main if"); 
 
         // when startup, user is able to specify no. of iterations for base station to run
         printf("Please enter the number of iterations you wish the base station will run. \n");
@@ -61,14 +60,12 @@ int main(int argc, char *argv[]){
         scanf("%d", &inputIterBaseStation);
 
         // then, ask user for input on a sea water column height threshold value
-        printf("Please enter a sea water column height threshold value greater than 6000:\n");
+        printf("Please enter a sea water column height threshold value >= 6000:\n");
         scanf("%d", &threshold);
 
         // after getting user input, send them to the slaves to proceed with node_io
         int i = 1;
-        // printf("size: %d\n", size);
         for (i=1; i < size; i++){
-            // MPI_Send(&inputIterBaseStation, 1, MPI_INT, i, 0, MPI_COMM_WORLD);
             MPI_Send(&threshold, 1, MPI_INT, i, 0, MPI_COMM_WORLD);
         }
 
@@ -76,12 +73,8 @@ int main(int argc, char *argv[]){
 	}
     else {
         // slaves only proceed with node_io after receiving the inputs from master 
-        // MPI_Recv(&inputIterBaseStation, 1, MPI_INT, 0, 0, MPI_COMM_WORLD, &status );
         MPI_Recv(&threshold, 1, MPI_INT, 0, 0, MPI_COMM_WORLD, &status );
-        
-        printf("\nElse inputIter: %d\n", inputIterBaseStation);
-        printf("Else thres: %d\n", threshold);
-
+    
 	    node_io( MPI_COMM_WORLD, new_comm, dims, threshold);
     }
     
