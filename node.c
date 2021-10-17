@@ -41,7 +41,6 @@ struct arg_struct_base_station {
     int recv_node_coord[4][2];
 };
 
-
 // global struct for POSIX threads to retrieve the node's rank and moving average for that iteration
 struct arg_struct_thread {
     float node_mAvg; // this node's MA, updated as a new MA is generated in each iteration
@@ -51,8 +50,6 @@ struct arg_struct_thread {
     MPI_Comm comm; // the slaves/virtual topology communicator
     float* recv_node_ma_arr; // an array to store all neighbour nodes' MA
 } *node_thread_args;
-
-pthread_mutex_t mutex_node = PTHREAD_MUTEX_INITIALIZER;
 
 
 /* This is the slave; each slave/process simulates one tsunameter sensor node */
@@ -122,8 +119,6 @@ int node_io(MPI_Comm world_comm, MPI_Comm comm, int dims[], int threshold){
     // array to store the values generated to calculate moving average (MA)
     ma_arr = (float*)malloc(100 * sizeof(float));
     memset(ma_arr, 0, 100 * sizeof(float));
-
-    //  -------------------- test pthread -------------------------------------
 
     // initialise the struct using an array in the heap
     node_thread_args = malloc(sizeof(struct arg_struct_thread) * 1);
