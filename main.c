@@ -19,7 +19,7 @@ Authors: Tan Ke Xin, Marcus Lim
 
 
 int main(int argc, char *argv[]){
-    
+    // initialize neccessary variables 
     int ndims=2, size, dims[ndims];
 	int nrows, ncols;
     int rank;
