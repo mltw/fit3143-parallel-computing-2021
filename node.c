@@ -28,8 +28,8 @@ Authors: Tan Ke Xin, Marcus Lim
 
 // struct to store necessary information for this node, and to be sent to the base station
 struct arg_struct_base_station {
-    int iteration; // iteration of the sensor nodes
-    char timestamp[256]; // time logged
+    int iteration;              // iteration of the sensor nodes
+    char timestamp[256];        // time logged
 
     // reporting node rank, moving average and coordinates
     int reporting_node_rank;
@@ -55,6 +55,7 @@ struct arg_struct_thread {
 
 /* This is the slave; each slave/process simulates one tsunameter sensor node */
 int node_io(MPI_Comm world_comm, MPI_Comm comm, int dims[], int threshold){
+    // initialize neccessary variables 
     int ndims=2, size, my_rank, reorder, my_cart_rank, ierr, masterSize, i;
     float randNum, mAvg;
 	MPI_Comm comm2D;
