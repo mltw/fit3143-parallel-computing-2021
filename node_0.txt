@@ -1,0 +1,43 @@
+
+Counter: 0 of node rank 0 (world rank 1)
+Generated: 6372.163086
+Moving average is: 6372.163086
+counter where neighbours' MA within threshold range: 0
+
+Counter: 1 of node rank 0 (world rank 1)
+Generated: 5603.037598
+Moving average is: 5987.600586
+counter where neighbours' MA within threshold range: 0
+
+Counter: 2 of node rank 0 (world rank 1)
+Generated: 6179.527832
+Moving average is: 6051.576172
+counter where neighbours' MA within threshold range: 0
+
+Counter: 3 of node rank 0 (world rank 1)
+Generated: 5908.250488
+Moving average is: 6015.744629
+value of bottom neighbour stored in array is 5934.609375
+value of right neighbour stored in array is 6075.807129
+counter where neighbours' MA within threshold range: 2
+
+Counter: 4 of node rank 0 (world rank 1)
+Generated: 6132.753906
+Moving average is: 6039.146484
+value of bottom neighbour stored in array is 5982.088379
+value of right neighbour stored in array is 5998.114258
+counter where neighbours' MA within threshold range: 2
+
+Counter: 5 of node rank 0 (world rank 1)
+Generated: 6214.269043
+Moving average is: 6068.333496
+value of bottom neighbour stored in array is 5955.506836
+value of right neighbour stored in array is 5997.220215
+counter where neighbours' MA within threshold range: 2
+
+Counter: 6 of node rank 0 (world rank 1)
+Generated: 5944.897461
+Moving average is: 6050.699707
+value of bottom neighbour stored in array is 5952.109863
+value of right neighbour stored in array is 5927.131348
+counter where neighbours' MA within threshold range: 2

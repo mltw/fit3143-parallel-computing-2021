@@ -213,6 +213,7 @@ void* base_station_recv(void *arguments){
     // initialize neccessary variables 
     MPI_Status status;
     int i;
+    int total_alert = 0, total_true_alert = 0;
     FILE *pFile;
 
     // create a custom MPI Datatype for the struct that will be sent from nodes, and received here in base station 
@@ -253,10 +254,9 @@ void* base_station_recv(void *arguments){
                     base_station_args.iteration, base_station_args.reporting_node_coord[0], 
                     base_station_args.reporting_node_coord[1], base_station_args.recv_node_rank_arr[1]);
 
-            fputs( base_station_args.timestamp, stdout ); // for testing
-
             
             int true_alert = 0, matching_nodes = 0, has_matched_rand_coord = 0;
+            
             int length = sizeof(globalArr)/sizeof(globalArr[0]);  
             pFile = fopen("base_station_log.txt", "a");
             
@@ -269,11 +269,14 @@ void* base_station_recv(void *arguments){
                         if (base_station_args.reporting_node_ma >= globalArr[k].randFloat-300 
                             && base_station_args.reporting_node_ma <= globalArr[k].randFloat+300){
                                 true_alert = 1;
+                                total_true_alert ++;
                                 break;
                             }
                     }
             }
             pthread_mutex_unlock(&mutex2);
+
+            total_alert++;
 
             // now, start writing into the file
             fprintf(pFile, "--------------------------------------------------------------\n");
@@ -328,7 +331,7 @@ void* base_station_recv(void *arguments){
             }
 
             // remaining 
-            fprintf(pFile, "Total Messages send between reporting node and base station: 1\n");
+            fprintf(pFile, "Total Messages sent between reporting node and base station: 1\n");
             fprintf(pFile, "Number of adjacent matches to reporting node: %d\n", matching_nodes);
             fprintf(pFile, "Max. tolerance range between nodes readings (m): 300\n");
             fprintf(pFile, "Max. tolerance range between satellite altimeter and reporting node readings (m): 300\n\n");
@@ -337,6 +340,14 @@ void* base_station_recv(void *arguments){
             fclose(pFile);
         }
     }
+
+    pFile = fopen("base_station_log.txt", "a");
+    fprintf(pFile, "Total reports: %d\n", total_alert);
+    fprintf(pFile, "True reports: %d\n", total_true_alert);
+    fprintf(pFile, "False reports: %d\n", total_alert - total_true_alert);
+    fclose(pFile);
+
+
     MPI_Type_free(&Valuetype);
     pthread_exit(NULL);
     

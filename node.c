@@ -166,6 +166,7 @@ int node_io(MPI_Comm world_comm, MPI_Comm comm, int dims[], int threshold){
         }
         mAvg = (float) sum / (counter+1 > 100 ? 100 : counter +1 );
 
+        // update the MA in the struct, so that the thread is updated as well
         node_thread_args->node_mAvg = mAvg;
         
         pFile = fopen(pOutputFileName, "a");
