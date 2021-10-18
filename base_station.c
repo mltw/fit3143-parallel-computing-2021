@@ -245,10 +245,8 @@ void* base_station_recv(void *arguments){
 
     MPI_Type_create_struct(8, blocklen, disp, datatype, &Valuetype);
     MPI_Type_commit(&Valuetype);
-    double startTime, endTime,elapsed;
 
     while (1){
-        startTime = MPI_Wtime();
 
         // receive message from ANY_SOURCE & ANY_TAG, perform appropriate actions based on tag received 
         MPI_Recv(&base_station_args, 8, Valuetype, MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
@@ -284,14 +282,6 @@ void* base_station_recv(void *arguments){
                     }
             }
             pthread_mutex_unlock(&mutex2);
-        
-        // not sure if we should remove this 
-        endTime = MPI_Wtime();
-        elapsed = endTime - startTime;
-        if( elapsed <= 5){
-            sleep(5 - elapsed);
-        }
-
 
             // now, start writing into the file
             fprintf(pFile, "--------------------------------------------------------------\n");
@@ -308,18 +298,18 @@ void* base_station_recv(void *arguments){
             fprintf(pFile, "Alert type: %s\n", true_alert==1? "Match (True)" : "Mismatch (False)");
 
             // reporting node
-            fprintf(pFile, "Reporting Node\tCoord.\tHeight (m)\tIPv4\n");
-            fprintf(pFile,"%d\t\t\t\t(%d,%d)\t%f\t???\n", 
+            fprintf(pFile, "Reporting Node\tCoord.\tHeight (m)\n");
+            fprintf(pFile,"%d\t\t\t\t(%d,%d)\t%f\n", 
                     base_station_args.reporting_node_rank,
                     (int)floor(base_station_args.reporting_node_rank/ncolsGlobal),
-                    base_station_args.reporting_node_rank%nrowsGlobal, // is this %?, will check agn 
+                    base_station_args.reporting_node_rank%nrowsGlobal,  
                     base_station_args.reporting_node_ma);  
 
             // adjacent nodes
-            fprintf(pFile, "\nAdjacent Nodes\tCoord.\tHeight (m)\tIPv4\n");
+            fprintf(pFile, "\nAdjacent Nodes\tCoord.\tHeight (m)\n");
             for (i=0; i<4; i++){
                 if (base_station_args.recv_node_rank_arr[i] >=0){
-                    fprintf(pFile, "%d\t\t\t\t(%d,%d)\t%f\t???\n", 
+                    fprintf(pFile, "%d\t\t\t\t(%d,%d)\t%f\n", 
                     base_station_args.recv_node_rank_arr[i],
                     base_station_args.recv_node_coord[i][0],
                     base_station_args.recv_node_coord[i][1],
@@ -346,7 +336,6 @@ void* base_station_recv(void *arguments){
             }
 
             // remaining 
-            fprintf(pFile, "\nCommunication time (seconds): ?? \n");
             fprintf(pFile, "Total Messages send between reporting node and base station: 1\n");
             fprintf(pFile, "Number of adjacent matches to reporting node: %d\n", matching_nodes);
             fprintf(pFile, "Max. tolerance range between nodes readings (m): 300\n");
