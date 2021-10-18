@@ -74,7 +74,7 @@ int base_station_io(MPI_Comm world_comm, MPI_Comm comm, int inputIterBaseStation
     thresholdGlobal = threshold;
     
     char buf[256]; 
-    int size, nNodes, thread_init;
+    int size, nNodes, thread_init, i, j;
     
     MPI_Comm_size( world_comm, &size );
     nNodes = size-1;
@@ -95,11 +95,11 @@ int base_station_io(MPI_Comm world_comm, MPI_Comm comm, int inputIterBaseStation
         printf("Error creating base station recv thread in base station\n");
 
     // Run for a fixed number of iterations which is set during compiled time
-    for (int i =0; i <= inputIterBaseStation;i++){
+    for (i =0; i <= inputIterBaseStation;i++){
          
          if (i == inputIterBaseStation){
              // send termination signal to nodes & altimeter to shutdown 
-             for (int j = 1; j <= nNodes; j++){
+             for (j = 1; j <= nNodes; j++){
                 MPI_Send(buf, 0, MPI_CHAR, j, MSG_SHUTDOWN, world_comm);
              }
              
@@ -212,7 +212,7 @@ void processFunc(int counter, int recvRows, int recvCols){
 void* base_station_recv(void *arguments){
     // initialize neccessary variables 
     MPI_Status status;
-    int i;
+    int i,k;
     int total_alert = 0, total_true_alert = 0;
     FILE *pFile;
 
@@ -262,7 +262,7 @@ void* base_station_recv(void *arguments){
             
             // loop through the global array(in reverse manner) to see if there are matching coordinates
             pthread_mutex_lock(&mutex2);
-            for (int k= length-1; k>=0; k--){
+            for (k= length-1; k>=0; k--){
                 if ((globalArr[k].randCoord.x == base_station_args.reporting_node_coord[0]) 
                     && (globalArr[k].randCoord.y == base_station_args.reporting_node_coord[1])){
         
@@ -315,7 +315,7 @@ void* base_station_recv(void *arguments){
             }
 
             // satellite altimeter reporting time and height
-            for (int k= length-1; k>=0; k--){
+            for (k= length-1; k>=0; k--){
                 if ((globalArr[k].randCoord.x == base_station_args.reporting_node_coord[0]) 
                     && (globalArr[k].randCoord.y == base_station_args.reporting_node_coord[1])){
                         fprintf(pFile, "\nSatellite altimeter reporting time: %s", globalArr[k].timestamp);

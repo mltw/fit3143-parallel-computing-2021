@@ -263,12 +263,7 @@ int node_io(MPI_Comm world_comm, MPI_Comm comm, int dims[], int threshold){
 void* node_recv(void *arguments){
     // get the arguments 
     struct arg_struct_thread *node_thread_args = arguments;
-    int end = node_thread_args->end;
-    float mAvg = node_thread_args->node_mAvg;
     float* recv_node_ma_arr = node_thread_args->recv_node_ma_arr;
-    int rank = node_thread_args->rank;
-    MPI_Comm comm = node_thread_args->comm;
-    MPI_Comm world_comm = node_thread_args->world_comm;
 
     MPI_Status status;
     float recv;
