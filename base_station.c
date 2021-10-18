@@ -92,12 +92,6 @@ int base_station_io(MPI_Comm world_comm, MPI_Comm comm, int inputIterBaseStation
     thread_init = pthread_create(&tid, 0, altimeter, &val);                     // Create the thread
     if (thread_init != 0)
         printf("Error creating altimeter thread in base station\n");
-    
-    // thread to concurrently wait for input from user
-    //pthread_t tid2;
-    //thread_init = pthread_create(&tid2,0, userInput, &terminationSignal);
-    //if (thread_init != 0)
-        //printf("Error creating awaiting user input thread in base station\n");
 
     // Thread to receive msg to/from sensor nodes
     pthread_t tid3;
@@ -128,15 +122,8 @@ int base_station_io(MPI_Comm world_comm, MPI_Comm comm, int inputIterBaseStation
 
     // Wait for the thread to complete
     pthread_join(tid, NULL);                                    
-    //pthread_join(tid2, &resSignal);
     pthread_join(tid3, NULL); 
 
-    //if ((bool)resSignal == true){
-        //printf(" I RECEIVED true SIGNAL IN MAIN FUNCTION\n"); 
-        //return 0;
-        //}
-    //else 
-        //printf("I DID NOT RECV SIGNAL YET\n");
     return 0;
 }
 
@@ -227,38 +214,6 @@ void processFunc(int counter, int recvRows, int recvCols){
      printf("Random float of iteration %d is %.3f\n",counter, globalArr[counter].randFloat );
      pthread_mutex_unlock(&mutex2);
         
-}
-
-// code inspiration: https://w3.cs.jmu.edu/kirkpams/OpenCSF/Books/csf/html/Extended6Input.html
-void* userInput(void *pArg){
-    bool currentSignal;
-    bool* p = (bool*)pArg;
-	currentSignal = *p;
-	
-	char buffer[MAX_LENGTH + 1];
-    memset (buffer, 0, MAX_LENGTH + 1);
-    
-	/* Read a line of input from STDIN */
-	//while (1)
-    while (fgets (buffer, MAX_LENGTH, stdin) != NULL)
-    {
-        
-           
-      /* Try to convert input to integer -1. All other values are wrong. */
-        //if (fgets (buffer, MAX_LENGTH, stdin) != NULL){
-            long guess = strtol (buffer, NULL, 10);
-            if (guess == -1)
-            {
-          /* Successfully read a -1 from input; exit with true */
-            printf ("User wish to terminate!\n");
-            currentSignal = true;
-            pthread_exit ((void*)currentSignal);
-            }
-            //}
-       
-    }
-
-    return 0;
 }
 
 /* A base station POSIX thread to receive msg from sensor nodes */
