@@ -23,7 +23,6 @@ int main(int argc, char *argv[]){
     int ndims=2, size, dims[ndims];
 	int nrows, ncols;
     int rank;
-    int* buf;
     int inputIterBaseStation, threshold;
     MPI_Comm new_comm;
     MPI_Status status;

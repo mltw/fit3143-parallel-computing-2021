@@ -74,16 +74,11 @@ int base_station_io(MPI_Comm world_comm, MPI_Comm comm, int inputIterBaseStation
     thresholdGlobal = threshold;
     
     char buf[256]; 
-    int size, nNodes, recv, thread_init;
-    bool terminationSignal = false;
+    int size, nNodes, thread_init;
     
-    MPI_Request send_request[256]; 
     MPI_Comm_size( world_comm, &size );
     nNodes = size-1;
-    MPI_Status send_status[nNodes];
-    MPI_Status status;
-    MPI_Request receive_request;
-    void *resSignal;
+
     
     struct sizeGrid val = { nrows, ncols};
     
@@ -133,9 +128,6 @@ void* altimeter(void *pArg)
 {   
     // initialize neccessary variables 
     struct sizeGrid *arg = (struct sizeGrid *) pArg;
-    char buf[256]; 
-    MPI_Status status;
-    MPI_Request receive_request;
     double startTime, endTime,elapsed;
     int maxSize = 5, current=0,i=0;
     
@@ -220,7 +212,7 @@ void processFunc(int counter, int recvRows, int recvCols){
 void* base_station_recv(void *arguments){
     // initialize neccessary variables 
     MPI_Status status;
-    int recv, i;
+    int i;
     FILE *pFile;
 
     // create a custom MPI Datatype for the struct that will be sent from nodes, and received here in base station 
