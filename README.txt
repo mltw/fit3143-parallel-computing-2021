@@ -1,3 +1,5 @@
+**Assignment 2**
+
 The output files were generated using 5 processes in a 2*2 grid, with 5 iterations at the base station and threshold of 6000.
 
 Ouput log file from base station is base_station_log.txt.
